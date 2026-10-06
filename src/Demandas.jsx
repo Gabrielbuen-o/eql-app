@@ -3,8 +3,15 @@ import { EMPRESAS, PRODUTOS_EKO, faseNome, fmt, hoje, ehProducao, ordemGrupo, pe
 import { DemandaModal } from './DemandaModal.jsx';
 import { brl, resultadoDemanda } from './custos.js';
 import { Agenda } from './Agenda.jsx';
+import { Planilha } from './Planilha.jsx';
 
-export function Demandas({ dados, tv, setTv, avisar, pode, custos }) {
+export function Demandas({ dados, tv, setTv, avisar, pode, custos, modo = 'geral' }) {
+  const [visao, setVisaoState] = useState(() => { try { return localStorage.getItem('eql-visao-obras') || 'quadro'; } catch { return 'quadro'; } });
+  const setVisao = (v) => { setVisaoState(v); try { localStorage.setItem('eql-visao-obras', v); } catch { /* ignora */ } };
+  const titulo = modo === 'obras' ? 'Obras' : modo === 'calendario' ? 'Calendário' : 'Demandas';
+  const mostrarQuadro = modo === 'geral' || (modo === 'obras' && visao === 'quadro');
+  const mostrarPlanilha = modo === 'obras' && visao === 'planilha';
+  const mostrarAgenda = modo === 'geral' || modo === 'calendario';
   const [filtro, setFiltro] = useState('todas');
   const [destaque, setDestaque] = useState(null); // filtro pelos cartões de números
   const [editando, setEditando] = useState(null);
@@ -64,7 +71,7 @@ export function Demandas({ dados, tv, setTv, avisar, pode, custos }) {
     <>
       <header className="head">
         <div>
-          <h1>Demandas</h1>
+          <h1>{titulo}</h1>
           <p className="date">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
         </div>
         <div className="row">
@@ -72,6 +79,12 @@ export function Demandas({ dados, tv, setTv, avisar, pode, custos }) {
             <button key={e.id} type="button" className={'pill' + (filtro === e.id ? ' on' : '')} aria-pressed={filtro === e.id}
               onClick={() => setFiltro(e.id)}>{e.curto}</button>
           ))}
+          {modo === 'obras' && !tv && (
+            <div className="seg two view-toggle" role="group" aria-label="Visualização">
+              <button type="button" className={visao === 'quadro' ? 'on' : ''} aria-pressed={visao === 'quadro'} onClick={() => setVisao('quadro')}>Quadro</button>
+              <button type="button" className={visao === 'planilha' ? 'on' : ''} aria-pressed={visao === 'planilha'} onClick={() => setVisao('planilha')}>Planilha</button>
+            </div>
+          )}
           {tv ? (
             <button type="button" className="pill dark" onClick={sairTv}>Sair do modo TV</button>
           ) : (
@@ -83,7 +96,7 @@ export function Demandas({ dados, tv, setTv, avisar, pode, custos }) {
         </div>
       </header>
 
-      <div className="stats">
+      {modo !== 'calendario' && <div className="stats">
         {stats.map((s) => (
           <button key={s.rotulo} type="button" className={'stat' + (destaque === s.id && s.id ? ' on' : '')} style={{ background: s.cor }}
             aria-pressed={destaque === s.id && !!s.id}
@@ -93,9 +106,14 @@ export function Demandas({ dados, tv, setTv, avisar, pode, custos }) {
             <span className="stat-hint">{destaque === s.id && s.id ? (s.id === 'concluidas' ? 'mostrando · clique para voltar' : 'filtrando · clique para limpar') : s.dica}</span>
           </button>
         ))}
-      </div>
+      </div>}
 
-      <div className="board">
+      {mostrarPlanilha && (
+        <Planilha demandas={filtradas} dados={dados} pode={pode} custos={custos} avisar={avisar}
+          onAbrir={(d) => pode.editarAndamento && setEditando(d)} />
+      )}
+
+      {mostrarQuadro && <div className="board">
         {colunas.map((c) => (
           <section key={c.id} className="card col" aria-label={c.nome}>
             <div className="col-head">
@@ -112,9 +130,9 @@ export function Demandas({ dados, tv, setTv, avisar, pode, custos }) {
             {!tv && pode.gestao && !vendoConcluidas && <button type="button" className="add-line" onClick={() => novaDemanda(c.id)}>+ Adicionar em {c.curto}</button>}
           </section>
         ))}
-      </div>
+      </div>}
 
-      {!tv && (
+      {!tv && mostrarAgenda && (
         pode.verOperacao && <Agenda demandas={visiveis} dados={dados} avisar={avisar} podeEditar={pode.gestao} admin={pode.admin && !!custos} />
       )}
 

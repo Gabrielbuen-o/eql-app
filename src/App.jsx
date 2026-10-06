@@ -13,7 +13,8 @@ import { Resultados } from './Resultados.jsx';
 // mostrar: quem vê a aba (a partir das permissões)
 const ABAS = [
   { id: 'inicio', nome: 'Início', mostrar: (p) => p.verOperacao, breve: 'Visão geral do grupo: faturamento, demandas críticas e indicadores das três empresas em uma tela.' },
-  { id: 'demandas', nome: 'Demandas', mostrar: () => true },
+  { id: 'demandas', nome: 'Demandas', mostrar: () => true,
+    sub: [{ id: 'obras', nome: 'Obras', mostrar: () => true }, { id: 'calendario', nome: 'Calendário', mostrar: (p) => p.verOperacao }] },
   { id: 'equipes', nome: 'Equipes', mostrar: (p) => p.gestao },
   { id: 'frotas', nome: 'Frotas', mostrar: (p) => p.gestao },
   { id: 'financeiro', nome: 'Financeiro', mostrar: (p) => p.verFinanceiro },
@@ -56,7 +57,9 @@ function Painel({ usuario }) {
   const pode = permissoes(papel);
   const custos = useCustos(dados, pode.admin && !dados.carregando);
   const abas = ABAS.filter((a) => a.mostrar(pode));
-  const atual = abas.find((a) => a.id === aba) || abas.find((a) => a.id === 'demandas');
+  const [abaPrincipal, subAba] = aba.split('/');
+  const atual = abas.find((a) => a.id === abaPrincipal) || abas.find((a) => a.id === 'demandas');
+  const sub = atual.sub?.find((x) => x.id === subAba && x.mostrar(pode))?.id || null;
 
   // preferências salvas no perfil valem em qualquer aparelho
   const prefsPerfil = JSON.stringify(eu?.preferencias || {});
@@ -86,13 +89,20 @@ function Painel({ usuario }) {
           <nav className="sidebar" aria-label="Menu principal">
             <Marca />
             <div className="nav">
-              {abas.map((a) => (
-                <button key={a.id} type="button" className={atual.id === a.id ? 'on' : ''} aria-current={atual.id === a.id ? 'page' : undefined}
+              {abas.map((a) => [
+                <button key={a.id} type="button" className={atual.id === a.id ? (sub ? 'parent' : 'on') : ''}
+                  aria-current={atual.id === a.id && !sub ? 'page' : undefined}
                   onClick={() => setAba(a.id)}>
                   <span>{a.nome}</span>
                   {a.breve && <span className="soon">em breve</span>}
-                </button>
-              ))}
+                </button>,
+                atual.id === a.id && a.sub?.filter((x) => x.mostrar(pode)).map((x) => (
+                  <button key={a.id + '/' + x.id} type="button" className={'sub' + (sub === x.id ? ' on' : '')}
+                    aria-current={sub === x.id ? 'page' : undefined} onClick={() => setAba(a.id + '/' + x.id)}>
+                    <span>{x.nome}</span>
+                  </button>
+                )),
+              ])}
             </div>
             <button type="button" className="me" style={{ border: 0, textAlign: 'left', width: '100%' }} onClick={() => setAba('config')}>
               <Avatar perfil={eu} nome={usuario.email} online />
@@ -107,7 +117,7 @@ function Painel({ usuario }) {
           {dados.carregando ? (
             <p className="empty">Carregando dados…</p>
           ) : atual.id === 'demandas' ? (
-            <Demandas dados={dados} tv={tv} setTv={setTv} avisar={avisar} pode={pode} custos={custos.porDemanda} />
+            <Demandas key={sub || 'geral'} modo={sub || 'geral'} dados={dados} tv={tv} setTv={setTv} avisar={avisar} pode={pode} custos={custos.porDemanda} />
           ) : atual.id === 'equipes' ? (
             <Equipe dados={dados} pode={pode} />
           ) : atual.id === 'frotas' ? (

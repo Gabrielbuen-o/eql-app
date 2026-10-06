@@ -516,3 +516,46 @@ table.fin { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 .hist li:last-child { border-bottom: 0; }
 .hist li span { color: var(--muted); }
 .due.concl { background: var(--brand-soft); color: var(--brand-text); }
+
+/* ---------- Sub-abas do menu ---------- */
+.nav button.parent { font-weight: 700; color: var(--brand-text); }
+.nav button.sub { min-height: 38px; margin-left: 18px; padding-left: 14px; font-size: 13px; border-left: 2px solid var(--line); border-radius: 0 12px 12px 0; }
+.nav button.sub.on { background: var(--lime); color: var(--on-lime); font-weight: 700; border-left-color: var(--lime); }
+@media (max-width: 640px) { .nav button.sub { margin-left: 0; border-left: 0; border-radius: 14px; } }
+
+/* ---------- Planilha de obras ---------- */
+.view-toggle { min-width: 200px; }
+table.sheet { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 1100px; font-size: 13px; }
+.sheet th, .sheet td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; white-space: nowrap; }
+.sheet thead th { background: var(--soft); position: sticky; top: 0; z-index: 2; padding: 0; }
+.th-sort { border: 0; background: transparent; width: 100%; text-align: left; padding: 10px 8px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.th-sort:hover { color: var(--ink); }
+.sheet th.num .th-sort, .sheet td.num { text-align: right; }
+.sheet tbody th[scope="row"] { position: sticky; left: 0; background: var(--card); z-index: 1; min-width: 190px; white-space: normal; }
+.sheet tbody tr:hover td, .sheet tbody tr:hover th { background: var(--soft); }
+.sheet tbody tr.sel td, .sheet tbody tr.sel th { background: var(--brand-soft); }
+.sheet small { display: block; font-size: 11px; color: var(--muted); font-weight: 500; }
+.sheet .ck { width: 36px; text-align: center; }
+.sheet .ck input { width: 18px; height: 18px; accent-color: var(--brand); }
+.link-cell { border: 0; background: none; padding: 0; font-weight: 700; color: var(--ink); text-align: left; cursor: pointer; }
+.link-cell:hover { color: var(--brand-text); text-decoration: underline; }
+.cell-input {
+  border: 1.5px solid transparent; background: transparent; border-radius: 8px; min-height: 34px; padding: 0 6px; color: var(--ink);
+}
+.cell-input:hover:not(:disabled) { border-color: var(--line); background: var(--field); }
+.cell-input:focus { border-color: var(--brand); background: var(--field); outline: none; }
+.cell-input:disabled { opacity: .7; }
+.cell-input[type=number] { width: 64px; }
+.cell-input.num { width: 110px; text-align: right; }
+.pct-cell { display: inline-flex; align-items: center; gap: 6px; }
+.mini-bar { width: 60px; height: 5px; border-radius: 999px; background: var(--line); overflow: hidden; display: inline-block; }
+.mini-bar > span { display: block; height: 100%; background: var(--brand); }
+.pct-ro { font-weight: 700; padding-left: 6px; }
+.sheet td.pos { color: var(--brand-text); font-weight: 700; }
+.sheet td.bad { color: var(--red); font-weight: 700; }
+.bulk {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; padding: 12px 14px; border-radius: var(--radius-m);
+  background: var(--brand-soft); position: sticky; top: 8px; z-index: 5;
+}
+.bulk .field { flex: 0 1 150px; }
+.bulk-count { font-weight: 800; align-self: center; margin-right: 6px; color: var(--brand-text); }
