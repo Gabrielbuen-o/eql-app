@@ -58,11 +58,15 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
   const fora = (funcId, dia) => idx.aus[funcId + '|' + dia];
   const livres = (dia) => funcs.filter((f) => !idx.recDia['func|' + f.id + '|' + dia] && !fora(f.id, dia));
 
+  const prioridade = (d) => ({ atrasada: 0, urgente: 1 }[situacao(d)] ?? 2);
   const secoes = EMPRESAS.map((e) => ({
     ...e,
     linhas: demandas
       .filter((d) => d.empresa === e.id && !d.arquivada)
-      .sort((a, b) => ordemGrupo(a.grupo, b.grupo) || (a.entrega || '9999').localeCompare(b.entrega || '9999')),
+      // atrasadas e urgentes (entrega em até 3 dias) sempre no topo, pela data; depois o resto por grupo
+      .sort((a, b) => prioridade(a) - prioridade(b)
+        || (prioridade(a) < 2 ? (a.entrega || '').localeCompare(b.entrega || '') : 0)
+        || ordemGrupo(a.grupo, b.grupo) || (a.entrega || '9999').localeCompare(b.entrega || '9999')),
   })).filter((s) => s.linhas.length);
 
   // ---------- soltar em uma célula ----------
