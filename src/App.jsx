@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { LOGO_URL, SLOGAN, aplicarPrefs, configurado, papelNome, permissoes, supabase } from './lib.js';
+import { SLOGAN, aplicarPrefs, configurado, papelNome, permissoes, supabase } from './lib.js';
 import { useData } from './useData.js';
 import { Demandas } from './Demandas.jsx';
 import { Equipe } from './Equipe.jsx';
@@ -61,13 +61,6 @@ function Painel({ usuario }) {
     const p = JSON.parse(prefsPerfil);
     if (Object.keys(p).length) { aplicarPrefs(p); gravarLocal('eql-prefs', p); }
   }, [prefsPerfil]);
-  // acompanha o tema do sistema quando a opção é "Automático"
-  useEffect(() => {
-    const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
-    const f = () => aplicarPrefs(lerLocal('eql-prefs'));
-    mq?.addEventListener?.('change', f);
-    return () => mq?.removeEventListener?.('change', f);
-  }, []);
 
   const salvarPrefs = async (p) => {
     aplicarPrefs(p);
@@ -88,10 +81,7 @@ function Painel({ usuario }) {
       <div className="shell">
         {!tv && (
           <nav className="sidebar" aria-label="Menu principal">
-            <div className="brand">
-              <img className="logo" src={LOGO_URL} alt="EQL Group" />
-              <span className="brand-sub">{SLOGAN}</span>
-            </div>
+            <Marca />
             <div className="nav">
               {abas.map((a) => (
                 <button key={a.id} type="button" className={atual.id === a.id ? 'on' : ''} aria-current={atual.id === a.id ? 'page' : undefined}
@@ -138,6 +128,18 @@ function Painel({ usuario }) {
   );
 }
 
+function Marca() {
+  return (
+    <div className="brand">
+      <div className="brand-mark" aria-hidden="true">EQL</div>
+      <div>
+        <div className="brand-name">EQL Group</div>
+        <div className="brand-sub">{SLOGAN}</div>
+      </div>
+    </div>
+  );
+}
+
 function Login() {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
@@ -153,10 +155,7 @@ function Login() {
   return (
     <div className="login">
       <form className="card" onSubmit={entrar}>
-        <div className="brand" style={{ padding: 0 }}>
-          <img className="logo" src={LOGO_URL} alt="EQL Group" />
-          <span className="brand-sub">{SLOGAN}</span>
-        </div>
+        <Marca />
         <h1 style={{ fontSize: 24, fontWeight: 800 }}>Entrar</h1>
         {erro && <div className="err" role="alert">{erro}</div>}
         <label className="field"><span>E-mail</span>

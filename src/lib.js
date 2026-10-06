@@ -9,8 +9,8 @@ export const supabase = configurado ? createClient(SUPABASE_URL, SUPABASE_ANON_K
 // ---------- Empresas, fases ----------
 export const EMPRESAS = [
   { id: 'engenharia', nome: 'EQL Engenharia', curto: 'Engenharia', cor: '#CFC8F5' },
-  { id: 'impermeabilizacao', nome: 'EQL Impermeabilização', curto: 'Impermeabilização', cor: '#7DB4EC' },
-  { id: 'eko', nome: 'EQL Eko', curto: 'Eko', cor: '#A9E4C3' },
+  { id: 'impermeabilizacao', nome: 'EQL Impermeabilização', curto: 'Impermeabilização', cor: '#4F97E0' },
+  { id: 'eko', nome: 'EQL Eko', curto: 'Eko', cor: '#A9CEF5' },
 ];
 export const empresaPorId = Object.fromEntries(EMPRESAS.map((e) => [e.id, e]));
 
@@ -104,8 +104,7 @@ export const iniciais = (nome) =>
   (nome || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join('');
 
 // ---------- Identidade ----------
-export const LOGO_URL = 'https://eqlgroup.com.br/wp-content/uploads/2024/03/Logo-Preta.png';
-export const SLOGAN = 'Do concreto à entrega';
+export const SLOGAN = 'Toda obra sob controle';
 
 // ---------- Acessos ----------
 export const PAPEIS = [
@@ -129,12 +128,11 @@ export function permissoes(papel) {
 }
 
 // ---------- Preferências de uso ----------
-export const PREFS_PADRAO = { tema: 'sistema', texto: 'm', densidade: 'confortavel', idioma: 'pt-BR' };
+export const PREFS_PADRAO = { tema: 'claro', texto: 'm', densidade: 'confortavel', idioma: 'pt-BR' };
 
 export function aplicarPrefs(p) {
   const prefs = { ...PREFS_PADRAO, ...(p || {}) };
-  const escuro = prefs.tema === 'escuro' ||
-    (prefs.tema === 'sistema' && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
+  const escuro = prefs.tema === 'escuro'; // padrão é claro; escuro só se a pessoa escolher
   const r = document.documentElement;
   r.dataset.tema = escuro ? 'escuro' : 'claro';
   r.dataset.texto = prefs.texto;

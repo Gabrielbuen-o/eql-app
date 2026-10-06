@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { Atividades } from './Atividades.jsx';
 import { PAPEIS, PREFS_PADRAO, papelNome, reduzirImagem, supabase, tempoRelativo } from './lib.js';
 import { Avatar } from './Avatar.jsx';
 
@@ -6,6 +7,11 @@ export function Configuracoes({ dados, eu, usuario, pode, salvarPrefs, avisar })
   const prefs = { ...PREFS_PADRAO, ...lerPrefs(), ...(eu?.preferencias || {}) };
   const semPerfis = dados.faltando.has('perfis');
   const set = (k, v) => salvarPrefs({ ...prefs, [k]: v });
+  const [filtroLog, setFiltroLog] = useState(null);
+  const verAtividades = (id) => {
+    setFiltroLog(id);
+    setTimeout(() => document.getElementById('registro-atividades')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  };
 
   return (
     <>
@@ -32,7 +38,7 @@ export function Configuracoes({ dados, eu, usuario, pode, salvarPrefs, avisar })
         <section className="card stack" aria-label="Aparência e uso">
           <h2 className="card-title">Aparência e uso</h2>
           <Opcao rotulo="Tema" valor={prefs.tema} onMudar={(v) => set('tema', v)}
-            opcoes={[['sistema', 'Automático'], ['claro', 'Claro'], ['escuro', 'Escuro']]} />
+            opcoes={[['claro', 'Claro'], ['escuro', 'Escuro']]} />
           <Opcao rotulo="Tamanho do texto" valor={prefs.texto} onMudar={(v) => set('texto', v)}
             opcoes={[['p', 'Pequeno'], ['m', 'Normal'], ['g', 'Grande'], ['gg', 'Maior']]} />
           <Opcao rotulo="Espaçamento" valor={prefs.densidade} onMudar={(v) => set('densidade', v)}
@@ -48,7 +54,8 @@ export function Configuracoes({ dados, eu, usuario, pode, salvarPrefs, avisar })
         </section>
       </div>
 
-      {pode.verOperacao && !semPerfis && <Usuarios dados={dados} eu={eu} pode={pode} avisar={avisar} />}
+      {pode.verOperacao && !semPerfis && <Usuarios dados={dados} eu={eu} pode={pode} avisar={avisar} verAtividades={verAtividades} />}
+      {pode.admin && !semPerfis && <Atividades dados={dados} filtroUsuario={filtroLog} setFiltroUsuario={setFiltroLog} />}
     </>
   );
 }
@@ -111,7 +118,7 @@ function BotaoFoto({ perfil, dados, grande, online, podeTrocar = true }) {
   );
 }
 
-function Usuarios({ dados, eu, pode, avisar }) {
+function Usuarios({ dados, eu, pode, avisar, verAtividades }) {
   const lista = [...dados.perfis].sort((a, b) =>
     (dados.online.has(b.id) - dados.online.has(a.id)) || (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
   const qtdOnline = lista.filter((p) => dados.online.has(p.id)).length;
@@ -123,7 +130,7 @@ function Usuarios({ dados, eu, pode, avisar }) {
       </div>
       <div className="users">
         {lista.map((p) => (
-          <LinhaUsuario key={p.id} p={p} dados={dados} online={dados.online.has(p.id)} admin={pode.admin} eu={eu} avisar={avisar} />
+          <LinhaUsuario key={p.id} p={p} dados={dados} online={dados.online.has(p.id)} admin={pode.admin} eu={eu} avisar={avisar} verAtividades={verAtividades} />
         ))}
       </div>
       {pode.admin && (
@@ -138,7 +145,7 @@ function Usuarios({ dados, eu, pode, avisar }) {
   );
 }
 
-function LinhaUsuario({ p, dados, online, admin, eu, avisar }) {
+function LinhaUsuario({ p, dados, online, admin, eu, avisar, verAtividades }) {
   const [nome, setNome] = useState(p.nome || '');
   const [grupo, setGrupo] = useState(p.cliente_grupo || '');
   const souEu = p.id === eu?.id;
@@ -184,6 +191,7 @@ function LinhaUsuario({ p, dados, online, admin, eu, avisar }) {
           {online ? 'Online agora' : 'Último acesso ' + tempoRelativo(p.ultimo_acesso)}
         </span>
         <span>Última modificação {tempoRelativo(p.ultima_modificacao)}</span>
+        {admin && <button type="button" className="link-btn" style={{ alignSelf: 'flex-start', fontSize: 12, color: 'var(--brand-text)' }} onClick={() => verAtividades(p.id)}>Ver atividades</button>}
       </div>
     </div>
   );

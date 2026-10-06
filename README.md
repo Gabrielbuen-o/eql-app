@@ -46,6 +46,7 @@ Se o app abrir com a mensagem “Falta ligar o banco de dados”, as variáveis 
 - Quando uma mudança precisar de campo novo no banco, vem um arquivo numerado em `supabase/` para rodar uma vez no SQL Editor. Ele só acrescenta, não apaga nada.
   - `03_folgas_e_frotas.sql`: folgas/férias, veículos e agenda dos veículos
   - `04_acessos_e_perfis.sql`: acessos (administrador, gerente, campo, cliente), fotos, último acesso e preferências
+  - `05_registro_de_atividades.sql`: registro de tudo que cada usuário cria, altera ou apaga (só administradores veem)
 
 ## Acessos
 | Tipo | Pode |
