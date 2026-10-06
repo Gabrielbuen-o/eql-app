@@ -669,3 +669,26 @@ table.sheet { border-collapse: separate; border-spacing: 0; width: 100%; min-wid
 .tv .painel-head h1 { font-size: 40px; }
 .tv .painel-clock { font-size: 48px; }
 @media (max-width: 1400px) { .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+/* ---------- Sub-aba de segundo nível (Obras → Calendário) ---------- */
+.nav button.sub.n2 { margin-left: 34px; }
+@media (max-width: 640px) { .nav button.sub.n2 { margin-left: 0; } }
+
+/* ---------- Fábrica (EQL Eko) ---------- */
+.fab-board { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.fab-board .col { display: flex; flex-direction: column; gap: 10px; }
+.fab-concluidos { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); margin-top: 12px; }
+.dot.fase-orcamento { background: var(--ph-2); }
+.dot.fase-execucao { background: var(--ph-3); }
+.dot.fase-estoque { background: var(--ph-5); }
+.producao { display: flex; flex-direction: column; gap: 14px; }
+.producao .col-head { flex-wrap: wrap; justify-content: flex-start; gap: 6px 14px; }
+.producao h2 { font-size: 17px; font-weight: 800; }
+.producao-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.producao-item { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: 16px; background: var(--chip); }
+.producao-nome { font-size: 13px; font-weight: 700; color: var(--text-2); }
+.producao-num { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+.producao-num small { font-size: 14px; font-weight: 600; color: var(--text-2); }
+.producao-meta { font-size: 12.5px; color: var(--text-2); }
+.producao-meta b { color: var(--ink); }
+.producao-alerta { font-size: 12px; font-weight: 700; color: var(--red); }

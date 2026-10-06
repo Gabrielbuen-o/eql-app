@@ -73,7 +73,7 @@ export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, l
         onSubmit={(e) => { e.preventDefault(); salvar(); }}>
         <div className="modal-head">
           <div>
-            <span className="modal-kicker">{novo ? 'Nova demanda' : empresaPorId[d.empresa]?.nome}</span>
+            <span className="modal-kicker">{novo ? (d.empresa === 'eko' ? 'Novo pedido · EQL Eko' : 'Nova demanda') : empresaPorId[d.empresa]?.nome}</span>
             <h2>{producao ? [d.produto || 'Novo pedido', d.grupo].filter(Boolean).join(' · ') : d.nome || 'Sem nome'}</h2>
             {!novo && inicial.atualizado_em && (
               <span className="modal-kicker" style={{ fontWeight: 500 }}>

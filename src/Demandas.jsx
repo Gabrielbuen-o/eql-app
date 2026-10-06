@@ -5,6 +5,9 @@ import { brl, resultadoDemanda } from './custos.js';
 import { Agenda } from './Agenda.jsx';
 import { Planilha } from './Planilha.jsx';
 
+// Obras = Engenharia e Impermeabilização. A fábrica (Eko) tem aba própria (Fabrica.jsx).
+const OBRAS = EMPRESAS.filter((e) => e.id !== 'eko');
+
 export function Demandas({ dados, tv, setTv, avisar, pode, custos, modo = 'geral' }) {
   const [visao, setVisaoState] = useState(() => { try { return localStorage.getItem('eql-visao-obras') || 'quadro'; } catch { return 'quadro'; } });
   const setVisao = (v) => { setVisaoState(v); try { localStorage.setItem('eql-visao-obras', v); } catch { /* ignora */ } };
@@ -19,10 +22,10 @@ export function Demandas({ dados, tv, setTv, avisar, pode, custos, modo = 'geral
   const [editando, setEditando] = useState(null);
   const dia = hoje();
 
-  const abertas = dados.demandas.filter((d) => !d.arquivada);
+  const abertas = dados.demandas.filter((d) => !d.arquivada && d.empresa !== 'eko');
   const visiveis = abertas.filter((d) => filtro === 'todas' || d.empresa === filtro);
   const casa = (d, f) => { const s = situacao(d, dia); return f === 'semana' ? s === 'semana' || s === 'urgente' : s === f; };
-  const concluidas = dados.demandas.filter((d) => d.arquivada && (filtro === 'todas' || d.empresa === filtro));
+  const concluidas = dados.demandas.filter((d) => d.arquivada && d.empresa !== 'eko' && (filtro === 'todas' || d.empresa === filtro));
   const vendoConcluidas = destaque === 'concluidas';
   const filtradas = vendoConcluidas ? concluidas : destaque ? visiveis.filter((d) => casa(d, destaque)) : visiveis;
 
@@ -41,7 +44,7 @@ export function Demandas({ dados, tv, setTv, avisar, pode, custos, modo = 'geral
     { id: 'concluidas', rotulo: 'Concluídas', valor: concluidas.length, dica: 'clique para ver', cor: '#D5DCE4' },
   ];
 
-  const colunas = EMPRESAS.filter((e) => filtro === 'todas' || e.id === filtro).map((e) => {
+  const colunas = OBRAS.filter((e) => filtro === 'todas' || e.id === filtro).map((e) => {
     const itens = filtradas.filter((d) => d.empresa === e.id);
     const porGrupo = {};
     // fábrica agrupa por produto; obras agrupam por cliente/grupo
@@ -77,7 +80,7 @@ export function Demandas({ dados, tv, setTv, avisar, pode, custos, modo = 'geral
           <p className="date">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
         </div>
         <div className="row">
-          {[{ id: 'todas', curto: 'Todas' }, ...EMPRESAS].map((e) => (
+          {[{ id: 'todas', curto: 'Todas' }, ...OBRAS].map((e) => (
             <button key={e.id} type="button" className={'pill' + (filtro === e.id ? ' on' : '')} aria-pressed={filtro === e.id}
               onClick={() => setFiltro(e.id)}>{e.curto}</button>
           ))}
@@ -176,14 +179,17 @@ function CartaoDemanda({ d, dia, onAbrir, res }) {
 
 
 // Cartão da fábrica: cliente, produto, fase e quanto do pedido já está em estoque
-function CartaoFabrica({ d, dia, onAbrir, res }) {
+export function CartaoFabrica({ d, dia, onAbrir, res, comProduto = false }) {
   const pct = percentual(d);
   const emEstoque = d.fase === 'estoque' || pct >= 100;
   const sit = emEstoque || d.arquivada ? 'ok' : situacao(d, dia);
   const prazo = d.arquivada ? 'Concluída' : emEstoque ? 'Em estoque' : rotuloPrazo(d, dia);
   // o produto já aparece no título do grupo; aqui vai a especificação
   const espec = d.produto === 'Concreto ensacado' || (!d.produto && /saco/i.test(d.nome || '')) ? '20 kg · 30 MPa' : d.especificacao;
-  const produto = [espec, d.descricao && d.descricao !== espec ? d.descricao : null].filter(Boolean).join(' · obs.: ') || d.produto;
+  const obs = d.descricao && d.descricao !== espec ? d.descricao : null;
+  const produto = comProduto // na aba da fábrica o cartão não fica embaixo do nome do produto, então mostra
+    ? [[d.produto, espec].filter(Boolean).join(' · '), obs].filter(Boolean).join(' · obs.: ')
+    : [espec, obs].filter(Boolean).join(' · obs.: ') || d.produto;
   return (
     <button type="button" className={'item sit-' + sit + (onAbrir ? '' : ' so-ver')} onClick={onAbrir || undefined}
       aria-label={`${d.nome}, ${produto}, ${prazo}, ${pct}% em estoque`}>
@@ -205,7 +211,7 @@ function CartaoFabrica({ d, dia, onAbrir, res }) {
   );
 }
 
-function LinhaResultado({ r }) {
+export function LinhaResultado({ r }) {
   if (r.vendido == null) {
     return <span className="item-cost">Custos <b>{brl(r.custos)}</b> · falta o valor vendido</span>;
   }
