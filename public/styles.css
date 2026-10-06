@@ -515,3 +515,4 @@ table.fin { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 .hist li { display: flex; justify-content: space-between; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .hist li:last-child { border-bottom: 0; }
 .hist li span { color: var(--muted); }
+.due.concl { background: var(--brand-soft); color: var(--brand-text); }

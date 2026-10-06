@@ -13,7 +13,9 @@ export function Demandas({ dados, tv, setTv, avisar, pode, custos }) {
   const abertas = dados.demandas.filter((d) => !d.arquivada);
   const visiveis = abertas.filter((d) => filtro === 'todas' || d.empresa === filtro);
   const casa = (d, f) => { const s = situacao(d, dia); return f === 'semana' ? s === 'semana' || s === 'urgente' : s === f; };
-  const filtradas = destaque ? visiveis.filter((d) => casa(d, destaque)) : visiveis;
+  const concluidas = dados.demandas.filter((d) => d.arquivada && (filtro === 'todas' || d.empresa === filtro));
+  const vendoConcluidas = destaque === 'concluidas';
+  const filtradas = vendoConcluidas ? concluidas : destaque ? visiveis.filter((d) => casa(d, destaque)) : visiveis;
 
   const grupos = useMemo(() => {
     const g = {};
@@ -27,6 +29,7 @@ export function Demandas({ dados, tv, setTv, avisar, pode, custos }) {
     { id: 'semana', rotulo: 'Entregar em até 7 dias', valor: conta('semana'), dica: 'clique para filtrar', cor: 'var(--yellow)' },
     { id: 'atrasada', rotulo: 'Atrasadas', valor: conta('atrasada'), dica: 'clique para filtrar', cor: 'var(--red-soft)' },
     { id: 'sem', rotulo: 'Sem prazo definido', valor: conta('sem'), dica: 'clique para filtrar', cor: 'var(--mint)' },
+    { id: 'concluidas', rotulo: 'Concluídas', valor: concluidas.length, dica: 'clique para ver', cor: '#D5DCE4' },
   ];
 
   const colunas = EMPRESAS.filter((e) => filtro === 'todas' || e.id === filtro).map((e) => {
@@ -87,7 +90,7 @@ export function Demandas({ dados, tv, setTv, avisar, pode, custos }) {
             onClick={() => setDestaque(s.id && destaque !== s.id ? s.id : null)}>
             <span className="stat-label">{s.rotulo}</span>
             <span className="stat-value">{s.valor}</span>
-            <span className="stat-hint">{destaque === s.id && s.id ? 'filtrando · clique para limpar' : s.dica}</span>
+            <span className="stat-hint">{destaque === s.id && s.id ? (s.id === 'concluidas' ? 'mostrando · clique para voltar' : 'filtrando · clique para limpar') : s.dica}</span>
           </button>
         ))}
       </div>
@@ -105,8 +108,8 @@ export function Demandas({ dados, tv, setTv, avisar, pode, custos }) {
                 {g.itens.map((d) => <CartaoDemanda key={d.id} d={d} dia={dia} res={!tv && pode.admin && custos ? resultadoDemanda(d.id, dados, custos) : null} onAbrir={!tv && pode.editarAndamento ? () => setEditando(d) : null} />)}
               </div>
             ))}
-            {!c.total && <p className="empty">{destaque ? 'Nada neste filtro.' : 'Nenhuma demanda.'}</p>}
-            {!tv && pode.gestao && <button type="button" className="add-line" onClick={() => novaDemanda(c.id)}>+ Adicionar em {c.curto}</button>}
+            {!c.total && <p className="empty">{vendoConcluidas ? 'Nenhuma demanda concluída.' : destaque ? 'Nada neste filtro.' : 'Nenhuma demanda.'}</p>}
+            {!tv && pode.gestao && !vendoConcluidas && <button type="button" className="add-line" onClick={() => novaDemanda(c.id)}>+ Adicionar em {c.curto}</button>}
           </section>
         ))}
       </div>
@@ -115,7 +118,6 @@ export function Demandas({ dados, tv, setTv, avisar, pode, custos }) {
         pode.verOperacao && <Agenda demandas={visiveis} dados={dados} avisar={avisar} podeEditar={pode.gestao} admin={pode.admin && !!custos} />
       )}
 
-      {!tv && pode.gestao && <Arquivadas demandas={dados.demandas.filter((d) => d.arquivada)} onAbrir={setEditando} />}
 
       {editando && (
         <DemandaModal inicial={editando} grupos={grupos} onFechar={() => setEditando(null)}
@@ -128,6 +130,7 @@ export function Demandas({ dados, tv, setTv, avisar, pode, custos }) {
 }
 
 function CartaoDemanda({ d, dia, onAbrir, res }) {
+  if (d.arquivada && d.empresa !== 'eko') return <CartaoConcluido d={d} onAbrir={onAbrir} res={res} />;
   const sit = situacao(d, dia);
   const pct = percentual(d);
   const prazo = rotuloPrazo(d, dia);
@@ -151,31 +154,13 @@ function CartaoDemanda({ d, dia, onAbrir, res }) {
   );
 }
 
-function Arquivadas({ demandas, onAbrir }) {
-  const [aberto, setAberto] = useState(false);
-  if (!demandas.length) return null;
-  return (
-    <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <button type="button" className="link-btn" style={{ alignSelf: 'flex-start' }} onClick={() => setAberto((v) => !v)}>
-        {aberto ? 'Ocultar' : 'Ver'} demandas concluídas ({demandas.length})
-      </button>
-      {aberto && (
-        <div className="row">
-          {demandas.map((d) => (
-            <button key={d.id} type="button" className="pill ghost" onClick={() => onAbrir(d)}>{d.nome}</button>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
 
 // Cartão da fábrica: cliente, produto, fase e quanto do pedido já está em estoque
 function CartaoFabrica({ d, dia, onAbrir, res }) {
   const pct = percentual(d);
   const emEstoque = d.fase === 'estoque' || pct >= 100;
-  const sit = emEstoque ? 'ok' : situacao(d, dia);
-  const prazo = emEstoque ? 'Em estoque' : rotuloPrazo(d, dia);
+  const sit = emEstoque || d.arquivada ? 'ok' : situacao(d, dia);
+  const prazo = d.arquivada ? 'Concluída' : emEstoque ? 'Em estoque' : rotuloPrazo(d, dia);
   // o produto já aparece no título do grupo; aqui vai a especificação
   const produto = d.especificacao || d.descricao || d.produto;
   return (
@@ -208,5 +193,19 @@ function LinhaResultado({ r }) {
       Vendido <b>{brl(r.vendido)}</b> · custos {brl(r.custos + r.imposto)} ·{' '}
       <b className={r.resultado >= 0 ? 'pos' : 'bad'}>{r.resultado >= 0 ? 'sobra' : 'prejuízo'} {brl(Math.abs(r.resultado))}</b>
     </span>
+  );
+}
+
+function CartaoConcluido({ d, onAbrir, res }) {
+  const quando = d.atualizado_em ? new Date(d.atualizado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '';
+  return (
+    <button type="button" className={'item sit-ok' + (onAbrir ? '' : ' so-ver')} onClick={onAbrir || undefined} aria-label={`${d.nome}, concluída`}>
+      <span className="item-top">
+        <span className="item-name">{d.nome}</span>
+        <span className="due concl">Concluída</span>
+      </span>
+      <span className="item-meta">{[faseNome[d.fase], d.descricao, quando && 'concluída em ' + quando].filter(Boolean).join(' · ')}</span>
+      {res && res.temAlgo && <LinhaResultado r={res} />}
+    </button>
   );
 }
