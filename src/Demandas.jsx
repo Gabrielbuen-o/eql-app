@@ -137,8 +137,9 @@ export function Demandas({ dados, tv, setTv, avisar, pode, custos, modo = 'geral
         ))}
       </div>}
 
-      {!tv && mostrarAgenda && (
-        pode.verOperacao && <Agenda demandas={visiveis} dados={dados} avisar={avisar} podeEditar={pode.gestao} admin={pode.admin && !!custos} />
+      {mostrarAgenda && pode.verOperacao && (
+        // no modo TV a agenda aparece igual, só sem os valores de custo
+        <Agenda demandas={visiveis} dados={dados} avisar={avisar} podeEditar={pode.gestao} admin={!tv && pode.admin && !!custos} />
       )}
 
 
