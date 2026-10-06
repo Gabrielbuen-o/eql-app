@@ -562,3 +562,33 @@ table.sheet { border-collapse: separate; border-spacing: 0; width: 100%; min-wid
 .cell-input.cli { width: 150px; }
 .spec-fixa { min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: var(--radius-s); background: var(--field); border: 1.5px dashed var(--line); font-weight: 700; }
 .spec-fixa small { font-size: 11px; font-weight: 600; color: var(--muted); }
+
+/* ---------- Início ---------- */
+.home-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.today-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+.today-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--radius-m); background: var(--soft); border: 2px solid transparent; }
+.today-card.sit-semana { border-color: var(--yellow-line); }
+.today-card.sit-urgente { border-color: var(--red-line); }
+.today-card.sit-atrasada { border-color: var(--red); }
+.today-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.today-name { font-weight: 800; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.today-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.today-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.t-chip { display: inline-flex; align-items: center; min-height: 30px; padding: 0 12px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--lav); color: var(--on-pastel); }
+.t-chip.veic { background: var(--mint); }
+.t-chip.folga { background: #E1E4E9; }
+.t-chip.ferias { background: var(--yellow); }
+.t-chip.livre { background: var(--card); color: var(--ink); border: 1.5px solid var(--line); }
+.home-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; align-items: start; }
+.card-title .count { margin-left: 6px; vertical-align: middle; }
+.plain-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.plain-list li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: var(--soft); }
+.pl-name { flex: 1; min-width: 0; font-weight: 700; font-size: 13px; }
+.pl-name small { display: block; font-weight: 500; font-size: 11px; color: var(--muted); }
+.warn-text { color: var(--late-ink); font-weight: 600; }
+@media (max-width: 640px) {
+  .home-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .home-stats .stat { padding: 14px; }
+  .home-stats .stat-value { font-size: 28px; }
+  .today-list { grid-template-columns: 1fr; }
+}

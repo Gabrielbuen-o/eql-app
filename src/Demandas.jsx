@@ -13,7 +13,9 @@ export function Demandas({ dados, tv, setTv, avisar, pode, custos, modo = 'geral
   const mostrarPlanilha = modo === 'obras' && visao === 'planilha';
   const mostrarAgenda = modo === 'geral' || modo === 'calendario';
   const [filtro, setFiltro] = useState('todas');
-  const [destaque, setDestaque] = useState(null); // filtro pelos cartões de números
+  const [destaque, setDestaque] = useState(() => { // filtro pelos cartões de números (pode vir do Início)
+    try { const v = sessionStorage.getItem('eql-destaque'); sessionStorage.removeItem('eql-destaque'); return v || null; } catch { return null; }
+  });
   const [editando, setEditando] = useState(null);
   const dia = hoje();
 

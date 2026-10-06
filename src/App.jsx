@@ -9,10 +9,11 @@ import { Frotas } from './Frotas.jsx';
 import { Configuracoes } from './Configuracoes.jsx';
 import { Avatar } from './Avatar.jsx';
 import { Resultados } from './Resultados.jsx';
+import { Inicio } from './Inicio.jsx';
 
 // mostrar: quem vê a aba (a partir das permissões)
 const ABAS = [
-  { id: 'inicio', nome: 'Início', mostrar: (p) => p.verOperacao, breve: 'Visão geral do grupo: faturamento, demandas críticas e indicadores das três empresas em uma tela.' },
+  { id: 'inicio', nome: 'Início', mostrar: (p) => p.verOperacao },
   { id: 'demandas', nome: 'Demandas', mostrar: () => true,
     sub: [{ id: 'obras', nome: 'Obras', mostrar: () => true }, { id: 'calendario', nome: 'Calendário', mostrar: (p) => p.verOperacao }] },
   { id: 'equipes', nome: 'Equipes', mostrar: (p) => p.gestao },
@@ -67,6 +68,13 @@ function Painel({ usuario }) {
     const p = JSON.parse(prefsPerfil);
     if (Object.keys(p).length) { aplicarPrefs(p); gravarLocal('eql-prefs', p); }
   }, [prefsPerfil]);
+
+  // navega para uma aba (e, em Demandas, já com um filtro dos cartões)
+  const irPara = (destino, filtro) => {
+    try { if (filtro) sessionStorage.setItem('eql-destaque', filtro); else sessionStorage.removeItem('eql-destaque'); } catch { /* ignora */ }
+    setAba(destino);
+    window.scrollTo(0, 0);
+  };
 
   const salvarPrefs = async (p) => {
     aplicarPrefs(p);
@@ -123,6 +131,8 @@ function Painel({ usuario }) {
             <Equipe dados={dados} pode={pode} />
           ) : atual.id === 'frotas' ? (
             <Frotas dados={dados} />
+          ) : atual.id === 'inicio' ? (
+            <Inicio dados={dados} eu={eu} irPara={irPara} />
           ) : atual.id === 'financeiro' ? (
             <Resultados dados={dados} porDemanda={custos.porDemanda} />
           ) : atual.id === 'config' ? (
