@@ -11,6 +11,8 @@ const TABELAS = {
   veiculo_alocacoes: ['dia', true, true],
   perfis: ['nome', true, false],
   custos_funcionarios: ['vigente_desde', true, false],
+  financeiro_demandas: ['atualizado_em', true, false],
+  custos_lancamentos: ['dia', true, false],
 };
 const NOMES = Object.keys(TABELAS);
 
@@ -177,10 +179,21 @@ export function useData(avisar, userId) {
     return inserir('custos_funcionarios', { funcionario_id, custo_diario, vigente_desde }, false);
   };
   const apagarCusto = (id) => apagar('custos_funcionarios', id);
+  const salvarFinanceiro = async (demanda_id, campos) => {
+    setTabela('financeiro_demandas', (xs) => {
+      const ex = xs.find((x) => x.demanda_id === demanda_id);
+      return ex ? xs.map((x) => (x.demanda_id === demanda_id ? { ...x, ...campos } : x)) : [...xs, { demanda_id, ...campos }];
+    });
+    const { error } = await supabase.from('financeiro_demandas').upsert({ demanda_id, ...campos }, { onConflict: 'demanda_id' });
+    if (!falhou(error, 'financeiro_demandas')) recarregar('financeiro_demandas');
+    return !error;
+  };
+  const lancarCusto = (linha) => inserir('custos_lancamentos', linha);
+  const apagarLancamento = (id) => apagar('custos_lancamentos', id);
 
   return {
     ...db, carregando, online, faltando,
-    definirCusto, apagarCusto,
+    definirCusto, apagarCusto, salvarFinanceiro, lancarCusto, apagarLancamento,
     atualizarPerfil, enviarFoto,
     salvarDemanda, excluirDemanda,
     adicionarFuncionario, atualizarFuncionario, salvarVeiculo,

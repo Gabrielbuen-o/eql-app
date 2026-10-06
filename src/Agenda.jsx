@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { ListaLancamentos, NovoLancamento } from './CustosObra.jsx';
+import { brl } from './custos.js';
 import { EMPRESAS, addDias, diaSemana, fmt, hoje, inicioSemana, ordemGrupo, situacao } from './lib.js';
 
 const FORA = [
@@ -11,8 +13,9 @@ const FORA = [
 // Arraste funcionários e veículos da paleta para as células; arraste um nome já
 // colocado para outra célula (mover) ou para a lixeira (remover).
 // No celular também dá para tocar no nome e depois tocar na célula.
-export function Agenda({ demandas, dados, avisar, podeEditar = true }) {
+export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = false }) {
   const ro = !podeEditar;
+  const [custoCel, setCustoCel] = useState(null); // { demanda, dia }
   const [semana, setSemana] = useState(() => inicioSemana(hoje()));
   const [mostrarDomingo, setMostrarDomingo] = useState(false);
   const [selecionado, setSelecionado] = useState(null); // { kind, id } — modo toque
@@ -47,8 +50,10 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true }) {
       aus[a.funcionario_id + '|' + a.dia] = a;
       (ausCel['out:' + a.tipo + '|' + a.dia] ||= []).push(a);
     });
-    return { cel, recDia, aus, ausCel };
-  }, [dados.alocacoes, dados.veiculo_alocacoes, dados.ausencias]);
+    const custoCelula = {};
+    (dados.custos_lancamentos || []).forEach((l) => { const k = l.demanda_id + '|' + l.dia; custoCelula[k] = (custoCelula[k] || 0) + Number(l.valor || 0); });
+    return { cel, recDia, aus, ausCel, custoCelula };
+  }, [dados.alocacoes, dados.veiculo_alocacoes, dados.ausencias, dados.custos_lancamentos]);
 
   const fora = (funcId, dia) => idx.aus[funcId + '|' + dia];
   const livres = (dia) => funcs.filter((f) => !idx.recDia['func|' + f.id + '|' + dia] && !fora(f.id, dia));
@@ -290,7 +295,17 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true }) {
                     </th>
                     {dias.map((dia) => {
                       const chave = d.id + '|' + dia;
-                      return celula(chave, dia, (idx.cel[chave] || []).map(({ kind, rec, a }) => {
+                      const custoDia = idx.custoCelula[chave] || 0;
+                      const botaoCusto = admin && (
+                        <button key="custo" type="button" className={'cost-chip' + (custoDia ? ' has' : '')}
+                          title={custoDia ? 'Ver custos lançados neste dia' : 'Lançar custo neste dia'}
+                          aria-label={custoDia ? `Custos do dia: ${brl(custoDia)}` : `Lançar custo em ${d.nome} no dia ${fmt(dia)}`}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); setCustoCel({ demanda: d, dia }); }}>
+                          {custoDia ? brl(custoDia) : '+ R$'}
+                        </button>
+                      );
+                      return celula(chave, dia, [...(idx.cel[chave] || []).map(({ kind, rec, a }) => {
                         const duplo = idx.recDia[kind + '|' + rec + '|' + dia] > 1;
                         const aus = kind === 'func' && fora(rec, dia);
                         const n = nome[kind][rec] || '?';
@@ -300,7 +315,7 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true }) {
                           <ChipCelula key={a.id} kind={kind} recId={rec} alocId={a.id} dia={dia}
                             extraClasse={(kind === 'veic' ? 'veic' : '') + (aviso ? ' conf' : '')} aviso={aviso} />
                         );
-                      }));
+                      }), botaoCusto]);
                     })}
                   </tr>
                 );
@@ -310,6 +325,8 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true }) {
         </table>
       </div>
 
+      {custoCel && createPortal(
+        <CustosDoDia demanda={custoCel.demanda} dia={custoCel.dia} dados={dados} onFechar={() => setCustoCel(null)} />, document.body)}
       {arraste && createPortal(<div className="drag-ghost" style={{ left: arraste.x / zoomAtual(), top: arraste.y / zoomAtual() }}>{arraste.rotulo}</div>, document.body)}
     </section>
   );
@@ -317,4 +334,30 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true }) {
 
 function zoomAtual() {
   return parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+}
+
+function CustosDoDia({ demanda, dia, dados, onFechar }) {
+  const lanc = (dados.custos_lancamentos || []).filter((l) => l.demanda_id === demanda.id && l.dia === dia);
+  const total = lanc.reduce((t, l) => t + Number(l.valor || 0), 0);
+  return (
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onFechar()}
+      onKeyDown={(e) => e.key === 'Escape' && onFechar()}>
+      <div className="modal" role="dialog" aria-modal="true" aria-label="Custos do dia">
+        <div className="modal-head">
+          <div>
+            <span className="modal-kicker">Custos do dia · {diaSemana(dia)} {fmt(dia)}</span>
+            <h2>{demanda.nome}</h2>
+            {total > 0 && <span className="modal-kicker" style={{ fontWeight: 500 }}>Total do dia: {brl(total)}</span>}
+          </div>
+          <button type="button" className="icon-btn" aria-label="Fechar" onClick={onFechar}>×</button>
+        </div>
+        <NovoLancamento dados={dados} demandaId={demanda.id} dia={dia} />
+        {lanc.length > 0 ? <ListaLancamentos lancamentos={lanc} dados={dados} mostrarDia={false} />
+          : <p className="note">Nada lançado neste dia ainda.</p>}
+        <div className="modal-foot" style={{ justifyContent: 'flex-end' }}>
+          <button type="button" className="pill ghost" onClick={onFechar}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
 }

@@ -9,6 +9,7 @@ const TIPOS = [
   { id: 'agenda', nome: 'Agenda, folgas e férias', tabelas: ['alocacoes', 'veiculo_alocacoes', 'ausencias'] },
   { id: 'equipes', nome: 'Funcionários e custos', tabelas: ['funcionarios', 'custos_funcionarios'] },
   { id: 'frotas', nome: 'Veículos', tabelas: ['veiculos'] },
+  { id: 'custos', nome: 'Valores e custos das obras', tabelas: ['financeiro_demandas', 'custos_lancamentos'] },
   { id: 'usuarios', nome: 'Usuários', tabelas: ['perfis'] },
 ];
 
@@ -19,6 +20,7 @@ const CAMPOS = {
   papel: 'Acesso', foto_url: 'Foto', cliente_grupo: 'Grupo do cliente', funcao: 'Função', placa: 'Placa',
   proxima_manutencao: 'Próxima manutenção', observacoes: 'Observações', email: 'E-mail',
   produto: 'Produto', especificacao: 'Especificação', custo_diario: 'Custo por dia', vigente_desde: 'Vale a partir de',
+  valor_vendido: 'Valor vendido', imposto_pct: 'Imposto', valor: 'Valor',
 };
 const OCULTAR = new Set(['ordem']);
 const EMPRESAS = { engenharia: 'Engenharia', impermeabilizacao: 'Impermeabilização', eko: 'Eko' };
@@ -29,6 +31,8 @@ function verbo(a) {
   if (t === 'alocacoes') return { criou: 'colocou na agenda', apagou: 'tirou da agenda', alterou: 'mudou na agenda' }[x];
   if (t === 'veiculo_alocacoes') return { criou: 'colocou o veículo na agenda', apagou: 'tirou o veículo da agenda', alterou: 'mudou o veículo na agenda' }[x];
   if (t === 'ausencias') return { criou: 'marcou', apagou: 'desmarcou', alterou: 'alterou' }[x];
+  if (t === 'financeiro_demandas') return { criou: 'definiu o valor da obra', apagou: 'apagou o valor da obra', alterou: 'alterou o valor da obra' }[x];
+  if (t === 'custos_lancamentos') return { criou: 'lançou custo em', apagou: 'apagou o custo de', alterou: 'alterou o custo de' }[x];
   if (t === 'custos_funcionarios') return { criou: 'definiu o custo de', apagou: 'apagou o custo de', alterou: 'alterou o custo de' }[x];
   const nome = { demandas: 'a demanda', funcionarios: 'o funcionário', veiculos: 'o veículo', perfis: 'o usuário' }[t] || t;
   return `${x} ${nome}`;
@@ -40,8 +44,10 @@ function valor(campo, v, nomes) {
   if (campo === 'papel') return papelNome[v] || v;
   if (campo === 'empresa') return EMPRESAS[v] || v;
   if (campo === 'pagamento') return PAGTO[v] || v;
-  if (campo === 'tipo') return v === 'ferias' ? 'Férias' : v === 'folga' ? 'Folga' : v;
+  if (campo === 'tipo') return { ferias: 'Férias', folga: 'Folga', material: 'Material', combustivel: 'Combustível', despesa: 'Despesa extra' }[v] || v;
   if (campo === 'percentual') return v + '%';
+  if (campo === 'imposto_pct') return v + '%';
+  if (campo === 'valor_vendido' || campo === 'valor') return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   if (campo === 'custo_diario') return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   if (campo === 'demanda_id') return nomes.demandas[v] || 'demanda apagada';
   if (campo === 'foto_url') return 'nova foto';

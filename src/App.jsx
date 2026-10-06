@@ -8,6 +8,7 @@ import { Equipe } from './Equipe.jsx';
 import { Frotas } from './Frotas.jsx';
 import { Configuracoes } from './Configuracoes.jsx';
 import { Avatar } from './Avatar.jsx';
+import { Resultados } from './Resultados.jsx';
 
 // mostrar: quem vê a aba (a partir das permissões)
 const ABAS = [
@@ -15,7 +16,7 @@ const ABAS = [
   { id: 'demandas', nome: 'Demandas', mostrar: () => true },
   { id: 'equipes', nome: 'Equipes', mostrar: (p) => p.gestao },
   { id: 'frotas', nome: 'Frotas', mostrar: (p) => p.gestao },
-  { id: 'financeiro', nome: 'Financeiro', mostrar: (p) => p.verFinanceiro, breve: 'Contas a pagar e a receber das três empresas, com resultado por obra e por empresa.' },
+  { id: 'financeiro', nome: 'Financeiro', mostrar: (p) => p.verFinanceiro },
   { id: 'rh', nome: 'RH & Ponto', mostrar: (p) => p.gestao, breve: 'Cadastro de funcionários, ponto diário e documentos.' },
   { id: 'relatorios', nome: 'Relatórios de obra', mostrar: (p) => p.verOperacao, breve: 'Formulários por etapa com fotos, no padrão exigido pela Help e pela Agplan.' },
   { id: 'aquisicao', nome: 'Aquisição', mostrar: (p) => p.admin, breve: 'Canais e funis de aquisição, investimento e retorno por canal.' },
@@ -111,6 +112,8 @@ function Painel({ usuario }) {
             <Equipe dados={dados} pode={pode} />
           ) : atual.id === 'frotas' ? (
             <Frotas dados={dados} />
+          ) : atual.id === 'financeiro' ? (
+            <Resultados dados={dados} porDemanda={custos.porDemanda} />
           ) : atual.id === 'config' ? (
             <Configuracoes dados={dados} eu={eu} usuario={usuario} pode={pode} salvarPrefs={salvarPrefs} avisar={avisar} />
           ) : (

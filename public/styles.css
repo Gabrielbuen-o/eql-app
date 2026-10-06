@@ -449,3 +449,51 @@ table.cal { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 .cost-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .cost-list li { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: baseline; font-size: 13px; }
 .cost-list .sub { font-size: 12px; color: var(--muted); }
+
+/* ---------- Custos e resultado ---------- */
+.tabs { display: flex; gap: 4px; background: var(--chip); padding: 4px; border-radius: 14px; }
+.tabs button { flex: 1; border: 0; background: transparent; min-height: 40px; border-radius: 10px; font-weight: 700; font-size: 13px; }
+.tabs button.on { background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+.result { display: flex; flex-direction: column; background: var(--soft); border-radius: var(--radius-m); padding: 6px 14px; }
+.result-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.result-row:last-child { border-bottom: 0; }
+.result-row span { display: flex; flex-direction: column; gap: 2px; }
+.result-row small { font-size: 11px; color: var(--muted); font-weight: 500; }
+.result-row b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.result-row.neg b { color: var(--text-2); font-weight: 600; }
+.result-row.strong b { font-size: 16px; }
+.result-row.total { font-weight: 800; font-size: 15px; }
+.result-row.total b { font-size: 18px; }
+.result-row.total.pos b, .item-cost b.pos { color: var(--brand-text); }
+.result-row.total.bad b, .item-cost b.bad { color: var(--red); }
+.lanc-form { display: flex; flex-direction: column; gap: 10px; background: var(--brand-soft); border-radius: var(--radius-m); padding: 14px; }
+:root[data-tema="escuro"] .lanc-form { background: var(--soft); }
+.lanc-fields { display: flex; flex-wrap: wrap; gap: 10px; }
+.lanc-fields .field { flex: 1 1 140px; }
+.lanc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lanc-list li { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 12px; background: var(--soft); font-size: 13px; }
+.lanc-desc { display: flex; flex-direction: column; min-width: 0; }
+.lanc-desc small { font-size: 11px; color: var(--muted); }
+.tipo-tag { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; white-space: nowrap; color: var(--on-pastel); }
+.tipo-tag.material { background: var(--lav); }
+.tipo-tag.combustivel { background: var(--yellow); }
+.tipo-tag.despesa { background: var(--peach); }
+.x-btn { border: 0; background: var(--chip); width: 30px; height: 30px; border-radius: 50%; font-size: 16px; line-height: 1; }
+.cost-chip {
+  border: 1px dashed var(--line-strong); background: transparent; color: var(--muted); border-radius: 999px;
+  min-height: 24px; padding: 0 8px; font-size: 11px; font-weight: 700; opacity: 0; transition: opacity .15s;
+}
+.cell:hover .cost-chip, .cost-chip:focus-visible, .cost-chip.has { opacity: 1; }
+.cost-chip.has { border: 0; background: var(--yellow); color: var(--yellow-ink); }
+@media (hover: none) { .cost-chip { opacity: .7; } }
+table.fin { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 980px; font-size: 13px; }
+.fin th, .fin td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.fin thead th { background: var(--soft); font-size: 12px; color: var(--muted); font-weight: 700; position: sticky; top: 0; }
+.fin th[scope="row"], .fin thead th:first-child { text-align: left; position: sticky; left: 0; background: var(--card); z-index: 1; white-space: normal; min-width: 180px; }
+.fin thead th:first-child { background: var(--soft); }
+.fin th small, .fin td small { display: block; font-size: 11px; color: var(--muted); font-weight: 500; }
+.fin td small.warn { color: var(--late-ink); }
+.fin tr.sep td { background: var(--chip); text-align: left; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.fin tr.subtotal th, .fin tr.subtotal td { font-weight: 800; background: var(--soft); }
+.fin td.pos { color: var(--brand-text); font-weight: 700; }
+.fin td.bad { color: var(--red); font-weight: 700; }
