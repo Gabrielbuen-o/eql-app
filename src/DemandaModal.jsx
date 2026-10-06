@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { brl, brlCentavos } from './custos.js';
 import { EMPRESAS, PAGAMENTOS, PRODUTOS_EKO, empresaPorId, fasesDe, resumoProducao, tempoRelativo } from './lib.js';
 
 const VAZIA = {
@@ -7,7 +8,7 @@ const VAZIA = {
   produto: '', especificacao: '',
 };
 
-export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, limitado = false, perfis = [] }) {
+export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, limitado = false, perfis = [], custo = null, funcionarios = [] }) {
   const novo = !inicial?.id;
   const [d, setD] = useState(() => ({ ...VAZIA, ...inicial, inicio: inicial?.inicio || '', entrega: inicial?.entrega || '', qtd_total: inicial?.qtd_total ?? '' }));
   const [salvando, setSalvando] = useState(false);
@@ -182,6 +183,37 @@ export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, l
               </label>
             </div>
           </>
+        )}
+
+        {custo && !novo && (
+          <div className="cost-box">
+            <div className="row" style={{ justifyContent: 'space-between' }}>
+              <span className="modal-kicker">Custo de mão de obra (pela agenda)</span>
+              <span style={{ fontWeight: 800, fontSize: 18 }}>{brl(custo.total)}</span>
+            </div>
+            {custo.dias === 0 ? (
+              <p className="note">Ninguém foi colocado nesta demanda na agenda ainda.</p>
+            ) : (
+              <>
+                <ul className="cost-list">
+                  {custo.porFunc.map((f) => {
+                    const nome = funcionarios.find((x) => x.id === f.funcionario_id)?.nome || '?';
+                    return (
+                      <li key={f.funcionario_id}>
+                        <span>{nome}</span>
+                        <span className="sub">{f.dias} {f.dias === 1 ? 'dia' : 'dias'}{f.semCusto ? ` · ${f.semCusto} sem custo` : ''}</span>
+                        <b>{brlCentavos(f.custo)}</b>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="note">
+                  {custo.dias} {custo.dias === 1 ? 'dia' : 'dias'} de equipe no total.
+                  {custo.semCusto > 0 && ' Há funcionários sem custo cadastrado: defina na aba Equipes para o valor ficar completo.'}
+                </p>
+              </>
+            )}
+          </div>
         )}
 
         <div className="field"><span>Pagamento</span>

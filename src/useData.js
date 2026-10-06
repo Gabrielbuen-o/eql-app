@@ -10,6 +10,7 @@ const TABELAS = {
   veiculos: ['ordem', true, false],
   veiculo_alocacoes: ['dia', true, true],
   perfis: ['nome', true, false],
+  custos_funcionarios: ['vigente_desde', true, false],
 };
 const NOMES = Object.keys(TABELAS);
 
@@ -169,8 +170,17 @@ export function useData(avisar, userId) {
     return atualizarPerfil(id, { foto_url: data.publicUrl });
   };
 
+  // ---------- Custos (só administradores) ----------
+  const definirCusto = async (funcionario_id, custo_diario, vigente_desde) => {
+    const ex = dbRef.current.custos_funcionarios.find((c) => c.funcionario_id === funcionario_id && c.vigente_desde === vigente_desde);
+    if (ex) return atualizar('custos_funcionarios', ex.id, { custo_diario });
+    return inserir('custos_funcionarios', { funcionario_id, custo_diario, vigente_desde }, false);
+  };
+  const apagarCusto = (id) => apagar('custos_funcionarios', id);
+
   return {
     ...db, carregando, online, faltando,
+    definirCusto, apagarCusto,
     atualizarPerfil, enviarFoto,
     salvarDemanda, excluirDemanda,
     adicionarFuncionario, atualizarFuncionario, salvarVeiculo,

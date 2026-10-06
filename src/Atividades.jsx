@@ -7,7 +7,7 @@ const TIPOS = [
   { id: 'todas', nome: 'Tudo', tabelas: null },
   { id: 'demandas', nome: 'Demandas', tabelas: ['demandas'] },
   { id: 'agenda', nome: 'Agenda, folgas e férias', tabelas: ['alocacoes', 'veiculo_alocacoes', 'ausencias'] },
-  { id: 'equipes', nome: 'Funcionários', tabelas: ['funcionarios'] },
+  { id: 'equipes', nome: 'Funcionários e custos', tabelas: ['funcionarios', 'custos_funcionarios'] },
   { id: 'frotas', nome: 'Veículos', tabelas: ['veiculos'] },
   { id: 'usuarios', nome: 'Usuários', tabelas: ['perfis'] },
 ];
@@ -18,7 +18,7 @@ const CAMPOS = {
   unidade: 'Unidade', arquivada: 'Arquivada', dia: 'Dia', demanda_id: 'Demanda', tipo: 'Tipo', ativo: 'Ativo',
   papel: 'Acesso', foto_url: 'Foto', cliente_grupo: 'Grupo do cliente', funcao: 'Função', placa: 'Placa',
   proxima_manutencao: 'Próxima manutenção', observacoes: 'Observações', email: 'E-mail',
-  produto: 'Produto', especificacao: 'Especificação',
+  produto: 'Produto', especificacao: 'Especificação', custo_diario: 'Custo por dia', vigente_desde: 'Vale a partir de',
 };
 const OCULTAR = new Set(['ordem']);
 const EMPRESAS = { engenharia: 'Engenharia', impermeabilizacao: 'Impermeabilização', eko: 'Eko' };
@@ -29,6 +29,7 @@ function verbo(a) {
   if (t === 'alocacoes') return { criou: 'colocou na agenda', apagou: 'tirou da agenda', alterou: 'mudou na agenda' }[x];
   if (t === 'veiculo_alocacoes') return { criou: 'colocou o veículo na agenda', apagou: 'tirou o veículo da agenda', alterou: 'mudou o veículo na agenda' }[x];
   if (t === 'ausencias') return { criou: 'marcou', apagou: 'desmarcou', alterou: 'alterou' }[x];
+  if (t === 'custos_funcionarios') return { criou: 'definiu o custo de', apagou: 'apagou o custo de', alterou: 'alterou o custo de' }[x];
   const nome = { demandas: 'a demanda', funcionarios: 'o funcionário', veiculos: 'o veículo', perfis: 'o usuário' }[t] || t;
   return `${x} ${nome}`;
 }
@@ -41,6 +42,7 @@ function valor(campo, v, nomes) {
   if (campo === 'pagamento') return PAGTO[v] || v;
   if (campo === 'tipo') return v === 'ferias' ? 'Férias' : v === 'folga' ? 'Folga' : v;
   if (campo === 'percentual') return v + '%';
+  if (campo === 'custo_diario') return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   if (campo === 'demanda_id') return nomes.demandas[v] || 'demanda apagada';
   if (campo === 'foto_url') return 'nova foto';
   if (typeof v === 'boolean') return v ? 'Sim' : 'Não';

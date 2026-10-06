@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { EMPRESAS, PRODUTOS_EKO, faseNome, fmt, hoje, ehProducao, ordemGrupo, percentual, resumoProducao, rotuloPrazo, situacao } from './lib.js';
 import { DemandaModal } from './DemandaModal.jsx';
+import { brl } from './custos.js';
 import { Agenda } from './Agenda.jsx';
 
-export function Demandas({ dados, tv, setTv, avisar, pode }) {
+export function Demandas({ dados, tv, setTv, avisar, pode, custos }) {
   const [filtro, setFiltro] = useState('todas');
   const [destaque, setDestaque] = useState(null); // filtro pelos cartões de números
   const [editando, setEditando] = useState(null);
@@ -101,7 +102,7 @@ export function Demandas({ dados, tv, setTv, avisar, pode }) {
             {c.grupos.map((g) => (
               <div key={g.nome} className="group">
                 <span className="group-name">{g.nome}</span>
-                {g.itens.map((d) => <CartaoDemanda key={d.id} d={d} dia={dia} onAbrir={!tv && pode.editarAndamento ? () => setEditando(d) : null} />)}
+                {g.itens.map((d) => <CartaoDemanda key={d.id} d={d} dia={dia} custo={!tv && custos ? custos[d.id] : null} onAbrir={!tv && pode.editarAndamento ? () => setEditando(d) : null} />)}
               </div>
             ))}
             {!c.total && <p className="empty">{destaque ? 'Nada neste filtro.' : 'Nenhuma demanda.'}</p>}
@@ -119,17 +120,19 @@ export function Demandas({ dados, tv, setTv, avisar, pode }) {
       {editando && (
         <DemandaModal inicial={editando} grupos={grupos} onFechar={() => setEditando(null)}
           onSalvar={dados.salvarDemanda} onExcluir={dados.excluirDemanda}
-          limitado={!pode.gestao} perfis={dados.perfis} />
+          limitado={!pode.gestao} perfis={dados.perfis}
+          custo={custos && editando.id ? custos[editando.id] || { total: 0, dias: 0, semCusto: 0, porFunc: [] } : null}
+          funcionarios={dados.funcionarios} />
       )}
     </>
   );
 }
 
-function CartaoDemanda({ d, dia, onAbrir }) {
+function CartaoDemanda({ d, dia, onAbrir, custo }) {
   const sit = situacao(d, dia);
   const pct = percentual(d);
   const prazo = rotuloPrazo(d, dia);
-  if (d.empresa === 'eko') return <CartaoFabrica d={d} dia={dia} onAbrir={onAbrir} />;
+  if (d.empresa === 'eko') return <CartaoFabrica d={d} dia={dia} onAbrir={onAbrir} custo={custo} />;
   const meta = ehProducao(d)
     ? resumoProducao(d, dia)
     : [faseNome[d.fase], d.descricao, d.inicio && d.inicio > dia ? 'começa ' + fmt(d.inicio) : null].filter(Boolean).join(' · ');
@@ -140,6 +143,7 @@ function CartaoDemanda({ d, dia, onAbrir }) {
         <span className={'due ' + sit}>{prazo}</span>
       </span>
       <span className="item-meta">{meta}</span>
+      {custo && custo.dias > 0 && <LinhaCusto c={custo} />}
       <span className="prog">
         <span className="bar"><span style={{ width: pct + '%' }} /></span>
         <span className="pct">{pct}%</span>
@@ -168,7 +172,7 @@ function Arquivadas({ demandas, onAbrir }) {
 }
 
 // Cartão da fábrica: cliente, produto, fase e quanto do pedido já está em estoque
-function CartaoFabrica({ d, dia, onAbrir }) {
+function CartaoFabrica({ d, dia, onAbrir, custo }) {
   const pct = percentual(d);
   const emEstoque = d.fase === 'estoque' || pct >= 100;
   const sit = emEstoque ? 'ok' : situacao(d, dia);
@@ -187,10 +191,20 @@ function CartaoFabrica({ d, dia, onAbrir }) {
         <span className="tag-fase">{faseNome[d.fase] || d.fase}</span>
       </span>
       <span className="item-meta">{d.qtd_total ? resumoProducao(d, dia) : 'Quantidade a definir'}</span>
+      {custo && custo.dias > 0 && <LinhaCusto c={custo} />}
       <span className="prog">
         <span className="bar"><span style={{ width: pct + '%' }} /></span>
         <span className="pct">{pct}%</span>
       </span>
     </button>
+  );
+}
+
+function LinhaCusto({ c }) {
+  return (
+    <span className="item-cost">
+      Mão de obra <b>{brl(c.total)}</b> · {c.dias} {c.dias === 1 ? 'dia' : 'dias'} de equipe
+      {c.semCusto > 0 && <span className="warn"> · {c.semCusto} sem custo</span>}
+    </span>
   );
 }

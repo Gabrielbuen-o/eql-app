@@ -48,6 +48,7 @@ Se o app abrir com a mensagem “Falta ligar o banco de dados”, as variáveis 
   - `04_acessos_e_perfis.sql`: acessos (administrador, gerente, campo, cliente), fotos, último acesso e preferências
   - `05_registro_de_atividades.sql`: registro de tudo que cada usuário cria, altera ou apaga (só administradores veem)
   - `06_fabrica_eko.sql`: demandas da fábrica com produto, especificação, cliente e fases Orçamento → Execução → Estoque
+  - `07_custos_mao_de_obra.sql`: custo por dia de cada funcionário (com histórico) e custo de mão de obra por obra, calculado pela agenda (só administradores)
 
 ## Acessos
 | Tipo | Pode |

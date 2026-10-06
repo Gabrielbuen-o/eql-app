@@ -440,3 +440,12 @@ table.cal { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 .stock-legend .sq.falta { background: var(--card); border: 1.5px solid var(--line-strong); }
 .item-sub { font-size: 12px; font-weight: 600; color: var(--text-2); }
 .tag-fase { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--brand-soft); color: var(--brand-text); }
+
+/* ---------- Custos ---------- */
+.item-cost { font-size: 12px; color: var(--text-2); }
+.item-cost b { color: var(--ink); }
+.item-cost .warn { color: var(--late-ink); font-weight: 600; }
+.cost-box { background: var(--soft); border-radius: var(--radius-m); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.cost-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cost-list li { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: baseline; font-size: 13px; }
+.cost-list .sub { font-size: 12px; color: var(--muted); }

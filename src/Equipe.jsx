@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { addDias, fmt, hoje, iniciais } from './lib.js';
+import { brl, brlCentavos, custoAtual } from './custos.js';
 
-export function Equipe({ dados }) {
+export function Equipe({ dados, pode = {} }) {
+  const admin = !!pode.admin;
   const [nome, setNome] = useState('');
   const [funcao, setFuncao] = useState('');
   const [editando, setEditando] = useState(null); // { id, nome, funcao }
@@ -23,15 +25,34 @@ export function Equipe({ dados }) {
   const salvarEdicao = async () => {
     if (!editando.nome.trim()) return;
     await dados.atualizarFuncionario(editando.id, { nome: editando.nome.trim(), funcao: editando.funcao?.trim() || null });
+    if (admin && editando.custo !== '') {
+      const valor = Math.round(Number(String(editando.custo).replace(',', '.')) * 100) / 100;
+      const atual = custoAtual(editando.id, dados.custos_funcionarios);
+      if (!Number.isNaN(valor) && (!atual || Number(atual.custo_diario) !== valor || atual.vigente_desde !== editando.desde)) {
+        await dados.definirCusto(editando.id, valor, editando.desde || dia);
+      }
+    }
     setEditando(null);
   };
+  const abrirEdicao = (f) => {
+    const c = admin ? custoAtual(f.id, dados.custos_funcionarios) : null;
+    setEditando({ id: f.id, nome: f.nome, funcao: f.funcao, custo: c ? String(c.custo_diario).replace('.', ',') : '', desde: dia });
+  };
+  const custoHoje = (id) => custoAtual(id, dados.custos_funcionarios);
+  const historico = (id) => dados.custos_funcionarios.filter((c) => c.funcionario_id === id)
+    .sort((a, b) => a.vigente_desde.localeCompare(b.vigente_desde));
+  const somaDia = ativos.reduce((t, f) => t + (Number(custoHoje(f.id)?.custo_diario) || 0), 0);
+  const semCusto = ativos.filter((f) => !custoHoje(f.id)).length;
 
   return (
     <>
       <header className="head">
         <div>
           <h1>Equipes</h1>
-          <p className="date">{ativos.length} funcionários ativos</p>
+          <p className="date">
+            {ativos.length} funcionários ativos
+            {admin && dados.custos_funcionarios && ` · custo da equipe ${brl(somaDia)} por dia${semCusto ? ` (${semCusto} sem custo cadastrado)` : ''}`}
+          </p>
         </div>
       </header>
 
@@ -64,10 +85,28 @@ export function Equipe({ dados }) {
                     <>
                       <input aria-label="Nome" value={editando.nome} onChange={(e) => setEditando({ ...editando, nome: e.target.value })} />
                       <input aria-label="Função" placeholder="Função" value={editando.funcao || ''} onChange={(e) => setEditando({ ...editando, funcao: e.target.value })} />
+                      {admin && (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span className="sub">Custo por dia (R$)</span>
+                            <input inputMode="decimal" placeholder="Ex.: 250" value={editando.custo} onChange={(e) => setEditando({ ...editando, custo: e.target.value })} />
+                          </label>
+                          <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span className="sub">Vale a partir de</span>
+                            <input type="date" value={editando.desde} onChange={(e) => setEditando({ ...editando, desde: e.target.value })} />
+                          </label>
+                        </div>
+                      )}
+                      {admin && historico(f.id).length > 0 && (
+                        <span className="sub">Histórico: {historico(f.id).map((c) => `${brlCentavos(c.custo_diario)} desde ${fmt(c.vigente_desde)}`).join(' · ')}</span>
+                      )}
                     </>
                   ) : (
                     <>
                       <span className="nm">{f.nome}</span>
+                      {admin && <span className="sub" style={{ fontWeight: 700, color: custoHoje(f.id) ? 'var(--brand-text)' : 'var(--late-ink)' }}>
+                        {custoHoje(f.id) ? `${brlCentavos(custoHoje(f.id).custo_diario)} por dia` : 'Custo não cadastrado'}
+                      </span>}
                       <span className="sub">{[f.funcao, ausHoje(f.id) ? (ausHoje(f.id).tipo === 'ferias' ? 'De férias hoje' : 'De folga hoje') : onde.length ? 'Hoje: ' + onde.join(', ') : 'Livre hoje'].filter(Boolean).join(' · ')}</span>
                     </>
                   )}
@@ -79,7 +118,7 @@ export function Equipe({ dados }) {
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <button type="button" className="mini" onClick={() => setEditando({ id: f.id, nome: f.nome, funcao: f.funcao })}>Editar</button>
+                    <button type="button" className="mini" onClick={() => abrirEdicao(f)}>Editar</button>
                     <button type="button" className="mini" onClick={() => dados.atualizarFuncionario(f.id, { ativo: false })}>Remover</button>
                   </div>
                 )}

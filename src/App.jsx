@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SLOGAN, aplicarPrefs, configurado, papelNome, permissoes, supabase } from './lib.js';
 import { useData } from './useData.js';
+import { useCustos } from './custos.js';
 import { Demandas } from './Demandas.jsx';
 import { Equipe } from './Equipe.jsx';
 import { Frotas } from './Frotas.jsx';
@@ -52,6 +53,7 @@ function Painel({ usuario }) {
   // Antes de rodar o SQL de acessos (sem tabela de perfis), todos continuam com acesso total.
   const papel = eu?.papel || (dados.faltando.has('perfis') ? 'admin' : 'campo');
   const pode = permissoes(papel);
+  const custos = useCustos(dados, pode.admin && !dados.carregando);
   const abas = ABAS.filter((a) => a.mostrar(pode));
   const atual = abas.find((a) => a.id === aba) || abas.find((a) => a.id === 'demandas');
 
@@ -104,9 +106,9 @@ function Painel({ usuario }) {
           {dados.carregando ? (
             <p className="empty">Carregando dados…</p>
           ) : atual.id === 'demandas' ? (
-            <Demandas dados={dados} tv={tv} setTv={setTv} avisar={avisar} pode={pode} />
+            <Demandas dados={dados} tv={tv} setTv={setTv} avisar={avisar} pode={pode} custos={custos.porDemanda} />
           ) : atual.id === 'equipes' ? (
-            <Equipe dados={dados} />
+            <Equipe dados={dados} pode={pode} />
           ) : atual.id === 'frotas' ? (
             <Frotas dados={dados} />
           ) : atual.id === 'config' ? (
