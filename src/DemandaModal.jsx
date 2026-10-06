@@ -56,7 +56,8 @@ export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, l
     if (dados.qtd_total) dados.percentual = Math.min(100, Math.round((dados.qtd_produzida / dados.qtd_total) * 100));
     // pedido todo pronto: vai para a fase Estoque sozinho
     if (producao && dados.qtd_total && dados.qtd_produzida >= dados.qtd_total && dados.fase === 'execucao') dados.fase = 'estoque';
-    const ok = await onSalvar(dados);
+    // numa demanda existente, manda só o que mudou (não sobrescreve edição de outra pessoa)
+    const ok = await onSalvar(novo ? dados : { id: inicial.id, ...soMudancas(dados, inicial) });
     setSalvando(false);
     if (ok !== false) onFechar();
   };
@@ -245,4 +246,19 @@ export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, l
       </form>
     </div>
   );
+}
+
+const CAMPOS = ['empresa', 'grupo', 'nome', 'descricao', 'fase', 'percentual', 'inicio', 'entrega', 'pagamento',
+  'qtd_total', 'qtd_produzida', 'unidade', 'arquivada', 'produto', 'especificacao'];
+function soMudancas(novo, antigo) {
+  const vazio = (v) => v === '' || v === undefined || v === null;
+  const igual = (a, b) => {
+    if (vazio(a) && vazio(b)) return true;
+    if (vazio(a) || vazio(b)) return false;
+    if (typeof a === 'number' || typeof b === 'number') return Number(a) === Number(b);
+    return String(a) === String(b);
+  };
+  const out = {};
+  CAMPOS.forEach((k) => { if (k in novo && !igual(novo[k], antigo?.[k])) out[k] = novo[k]; });
+  return out;
 }

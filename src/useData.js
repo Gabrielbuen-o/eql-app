@@ -29,6 +29,7 @@ export function useData(avisar, userId) {
 
   const setTabela = (t, fn) => setDb((d) => ({ ...d, [t]: typeof fn === 'function' ? fn(d[t]) : fn }));
 
+  const avisadas = useRef(new Set()); // tabelas que já geraram aviso (não repetir a cada recarga)
   const recarregar = useCallback(async (t) => {
     const [col, asc, recente] = TABELAS[t];
     let q = supabase.from(t).select('*').order(col, { ascending: asc });
@@ -36,25 +37,52 @@ export function useData(avisar, userId) {
     const { data, error } = await q;
     if (error) {
       const faltaTabela = /does not exist|schema cache|Could not find/i.test(error.message);
-      if (faltaTabela) setFaltando((f) => new Set(f).add(t));
-      avisarRef.current?.(faltaTabela
-        ? 'Falta atualizar o banco: rode no Supabase o arquivo SQL mais recente da pasta supabase/.'
-        : 'Erro ao carregar: ' + error.message);
-      return;
+      if (faltaTabela) {
+        setFaltando((f) => (f.has(t) ? f : new Set(f).add(t)));
+        // tabelas de recursos novos (custos etc.): só registra; o próprio recurso avisa quando for usado
+        if (!avisadas.current.has('__falta') && !OPCIONAIS.includes(t)) {
+          avisadas.current.add('__falta');
+          avisarRef.current?.('Falta atualizar o banco: rode no Supabase o arquivo SQL mais recente da pasta supabase/.');
+        }
+      } else if (!avisadas.current.has(t)) {
+        avisadas.current.add(t);
+        avisarRef.current?.('Erro ao carregar: ' + error.message);
+      }
+      return false;
     }
+    avisadas.current.delete(t);
     setFaltando((f) => { if (!f.has(t)) return f; const n = new Set(f); n.delete(t); return n; });
     setTabela(t, data || []);
+    return true;
   }, []);
 
   useEffect(() => {
     let vivo = true;
-    Promise.all(NOMES.map(recarregar)).then(() => vivo && setCarregando(false));
-    const canal = supabase.channel('eql-tempo-real');
-    NOMES.forEach((t) => canal.on('postgres_changes', { event: '*', schema: 'public', table: t }, () => recarregar(t)));
-    canal.subscribe();
+    let canal = null;
+    let polling = null;
+    Promise.all(NOMES.map(recarregar)).then((oks) => {
+      if (!vivo) return;
+      setCarregando(false);
+      // Tempo real só nas tabelas que existem: uma tabela inexistente derruba a assinatura inteira
+      const existentes = NOMES.filter((_, i) => oks[i]);
+      canal = supabase.channel('eql-tempo-real');
+      existentes.forEach((t) => canal.on('postgres_changes', { event: '*', schema: 'public', table: t }, () => recarregar(t)));
+      canal.subscribe((status) => {
+        // se o tempo real cair, atualiza a cada 30 s até voltar
+        if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') && !polling && vivo) {
+          polling = setInterval(() => document.visibilityState === 'visible' && existentes.forEach(recarregar), 30000);
+        }
+        if (status === 'SUBSCRIBED' && polling) { clearInterval(polling); polling = null; }
+      });
+    });
     const vis = () => document.visibilityState === 'visible' && NOMES.forEach(recarregar);
     document.addEventListener('visibilitychange', vis);
-    return () => { vivo = false; supabase.removeChannel(canal); document.removeEventListener('visibilitychange', vis); };
+    return () => {
+      vivo = false;
+      if (canal) supabase.removeChannel(canal);
+      if (polling) clearInterval(polling);
+      document.removeEventListener('visibilitychange', vis);
+    };
   }, [recarregar]);
 
   // Quem está online agora (presença em tempo real) + registro do último acesso
@@ -100,8 +128,8 @@ export function useData(avisar, userId) {
     return !error;
   };
   const atualizar = async (t, id, campos) => {
+    if (String(id).startsWith('tmp-')) { recarregar(t); return false; } // ainda salvando: tenta de novo em instantes
     setTabela(t, (xs) => xs.map((x) => (x.id === id ? { ...x, ...campos } : x)));
-    if (String(id).startsWith('tmp-')) return true;
     const { error } = await comTolerancia((c) => supabase.from(t).update(c).eq('id', id), campos);
     falhou(error, t);
     return !error;
@@ -114,10 +142,12 @@ export function useData(avisar, userId) {
   };
 
   // ---------- Demandas ----------
+  // Envia só as colunas recebidas (quem chama manda só o que mudou), para duas pessoas
+  // editando a mesma demanda ao mesmo tempo não apagarem a alteração uma da outra.
   const salvarDemanda = async (d) => {
     const { id } = d;
-    // envia só as colunas que a tela edita (nada de campos calculados)
     const campos = Object.fromEntries(Object.entries(d).filter(([k]) => CAMPOS_DEMANDA.includes(k)));
+    if (id && !Object.keys(campos).length) return true;
     if (id) { const ok = await atualizar('demandas', id, campos); recarregar('demandas'); return ok; }
     return inserir('demandas', campos, false);
   };
@@ -223,6 +253,9 @@ function limiteDias() {
   d.setDate(d.getDate() - 120);
   return d.toISOString().slice(0, 10);
 }
+
+// recursos que dependem de arquivos SQL opcionais: não geram aviso ao carregar
+const OPCIONAIS = ['custos_funcionarios', 'financeiro_demandas', 'custos_lancamentos'];
 
 const CAMPOS_DEMANDA = ['empresa', 'grupo', 'nome', 'descricao', 'fase', 'percentual', 'inicio', 'entrega', 'pagamento',
   'qtd_total', 'qtd_produzida', 'unidade', 'arquivada', 'produto', 'especificacao'];

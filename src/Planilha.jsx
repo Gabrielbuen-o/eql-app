@@ -14,6 +14,7 @@ export function Planilha({ demandas, dados, pode, custos, onAbrir, avisar }) {
   const [aplicando, setAplicando] = useState(false);
   const verValores = pode.admin && !!custos;
   const L = !pode.gestao; // campo: só fase e %
+  const RO = !pode.editarAndamento; // cliente: só visualiza
 
   const linhas = useMemo(() => {
     const comInfo = demandas.map((d) => ({
@@ -43,7 +44,7 @@ export function Planilha({ demandas, dados, pode, custos, onAbrir, avisar }) {
     });
   }, [demandas, dados, custos, ordem, verValores, dia]);
 
-  const salvar = (d, campos) => dados.salvarDemanda({ ...d, ...campos });
+  const salvar = (d, campos) => dados.salvarDemanda({ id: d.id, ...campos }); // só o que mudou
   const todosMarcados = linhas.length > 0 && linhas.every((x) => sel.has(x.d.id));
   const alternar = (id) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const alternarTodos = () => setSel(todosMarcados ? new Set() : new Set(linhas.map((x) => x.d.id)));
@@ -121,7 +122,7 @@ export function Planilha({ demandas, dados, pode, custos, onAbrir, avisar }) {
         <table className="sheet">
           <thead>
             <tr>
-              <th scope="col" className="ck"><input type="checkbox" aria-label="Selecionar todas" checked={todosMarcados} onChange={alternarTodos} /></th>
+              <th scope="col" className="ck">{!RO && <input type="checkbox" aria-label="Selecionar todas" checked={todosMarcados} onChange={alternarTodos} />}</th>
               <Th col="nome">Demanda</Th>
               <Th col="cliente">Cliente</Th>
               <Th col="empresa">Empresa</Th>
@@ -137,7 +138,7 @@ export function Planilha({ demandas, dados, pode, custos, onAbrir, avisar }) {
           </thead>
           <tbody>
             {linhas.map(({ d, sit, pct, r }) => (
-              <LinhaPlanilha key={d.id} d={d} sit={sit} pct={pct} r={r} dia={dia} L={L} marcado={sel.has(d.id)} clientes={clientes}
+              <LinhaPlanilha key={d.id} d={d} sit={sit} pct={pct} r={r} dia={dia} L={L} RO={RO} marcado={sel.has(d.id)} clientes={clientes}
                 onMarcar={() => alternar(d.id)} onAbrir={() => onAbrir(d)} salvar={salvar} verValores={verValores} dados={dados} />
             ))}
             {!linhas.length && <tr><td colSpan={12} className="empty" style={{ padding: 16 }}>Nenhuma demanda neste filtro.</td></tr>}
@@ -149,7 +150,7 @@ export function Planilha({ demandas, dados, pode, custos, onAbrir, avisar }) {
   );
 }
 
-function LinhaPlanilha({ d, sit, pct, r, dia, L, marcado, onMarcar, onAbrir, salvar, verValores, dados, clientes }) {
+function LinhaPlanilha({ d, sit, pct, r, dia, L, RO, marcado, onMarcar, onAbrir, salvar, verValores, dados, clientes }) {
   const [pctTxt, setPctTxt] = useState(String(d.percentual ?? 0));
   const [cliTxt, setCliTxt] = useState(d.grupo || '');
   useEffect(() => { setCliTxt(d.grupo || ''); }, [d.grupo]);
@@ -177,7 +178,7 @@ function LinhaPlanilha({ d, sit, pct, r, dia, L, marcado, onMarcar, onAbrir, sal
   const enter = (e) => e.key === 'Enter' && e.currentTarget.blur();
   return (
     <tr className={marcado ? 'sel' : ''}>
-      <td className="ck"><input type="checkbox" aria-label={`Selecionar ${d.nome}`} checked={marcado} onChange={onMarcar} /></td>
+      <td className="ck">{!RO && <input type="checkbox" aria-label={`Selecionar ${d.nome}`} checked={marcado} onChange={onMarcar} />}</td>
       <th scope="row">
         <button type="button" className="link-cell" onClick={onAbrir}>{d.nome}</button>
         {d.empresa === 'eko' && <small>{[d.produto, d.especificacao].filter(Boolean).join(' · ')}</small>}
@@ -189,7 +190,7 @@ function LinhaPlanilha({ d, sit, pct, r, dia, L, marcado, onMarcar, onAbrir, sal
       <td><span className="dot" style={{ background: emp?.cor, display: 'inline-block', marginRight: 6, verticalAlign: 'middle' }} />{emp?.curto}</td>
       <td><span className={'due ' + (d.arquivada ? 'concl' : sit)}>{d.arquivada ? 'Concluída' : rotuloPrazo(d, dia)}</span></td>
       <td>
-        <select className="cell-input" aria-label={`Fase de ${d.nome}`} value={d.fase} onChange={(e) => salvar(d, { fase: e.target.value })}>
+        <select className="cell-input" disabled={RO} aria-label={`Fase de ${d.nome}`} value={d.fase} onChange={(e) => salvar(d, { fase: e.target.value })}>
           {fasesDe(d.empresa).map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
         </select>
       </td>
@@ -198,7 +199,7 @@ function LinhaPlanilha({ d, sit, pct, r, dia, L, marcado, onMarcar, onAbrir, sal
           <span className="pct-ro" title="Na fábrica a % vem do estoque">{pct}%</span>
         ) : (
           <span className="pct-cell">
-            <input className="cell-input" type="number" min="0" max="100" aria-label={`Andamento de ${d.nome}`} value={pctTxt}
+            <input className="cell-input" type="number" min="0" max="100" disabled={RO} aria-label={`Andamento de ${d.nome}`} value={pctTxt}
               onChange={(e) => setPctTxt(e.target.value)} onBlur={salvarPct} onKeyDown={enter} />
             <span className="mini-bar"><span style={{ width: pct + '%' }} /></span>
           </span>

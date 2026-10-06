@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Component, useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SLOGAN, aplicarPrefs, configurado, papelNome, permissoes, supabase } from './lib.js';
 import { useData } from './useData.js';
@@ -114,6 +114,7 @@ function Painel({ usuario }) {
           </nav>
         )}
         <main className="main">
+          <ProtecaoErro chave={aba}>
           {dados.carregando ? (
             <p className="empty">Carregando dados…</p>
           ) : atual.id === 'demandas' ? (
@@ -136,6 +137,7 @@ function Painel({ usuario }) {
               </section>
             </>
           )}
+          </ProtecaoErro>
         </main>
       </div>
       {toast && createPortal(<div className="toast" role="status">{toast}</div>, document.body)}
@@ -204,4 +206,23 @@ function lerLocal(k, json = true) {
 }
 function gravarLocal(k, v, json = true) {
   try { localStorage.setItem(k, json ? JSON.stringify(v) : v); } catch { /* ignora */ }
+}
+
+// Se alguma tela quebrar, mostra um aviso com botão de recarregar em vez da página em branco
+class ProtecaoErro extends Component {
+  constructor(p) { super(p); this.state = { erro: null }; }
+  static getDerivedStateFromError(erro) { return { erro }; }
+  componentDidCatch(erro, info) { console.error('[EQL] erro na tela', erro, info); }
+  componentDidUpdate(prev) { if (prev.chave !== this.props.chave && this.state.erro) this.setState({ erro: null }); }
+  render() {
+    if (!this.state.erro) return this.props.children;
+    return (
+      <section className="card placeholder" role="alert">
+        <span className="tag">Algo deu errado nesta tela</span>
+        <p>Seus dados estão salvos. Recarregue a página; se continuar, mande um print desta mensagem.</p>
+        <p className="note" style={{ fontFamily: 'ui-monospace, monospace' }}>{String(this.state.erro?.message || this.state.erro)}</p>
+        <button type="button" className="pill lime" style={{ alignSelf: 'flex-start' }} onClick={() => window.location.reload()}>Recarregar</button>
+      </section>
+    );
+  }
 }
