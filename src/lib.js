@@ -31,6 +31,7 @@ export const faseNome = { ...Object.fromEntries(FASES.map((f) => [f.id, f.nome])
 
 export const PRODUTOS_EKO = [
   { id: 'Concreto ensacado', unidade: 'sacos', espec: '20 kg · 30 MPa' },
+  { id: 'Graute', unidade: 'sacos', espec: '' },
   { id: 'Mourão', unidade: 'mourões', espec: '' },
   { id: 'Placa', unidade: 'placas', espec: '' },
   { id: 'Outro', unidade: 'un.', espec: '' },
