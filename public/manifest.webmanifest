@@ -1,0 +1,17 @@
+{
+  "name": "EQL Group",
+  "short_name": "EQL Group",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F4F5F6",
+  "theme_color": "#F4F5F6",
+  "icons": [
+    {
+      "src": "https://eqlgroup.com.br/wp-content/uploads/2024/04/cropped-Favicon-270x270.png",
+      "sizes": "270x270",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
