@@ -71,9 +71,22 @@ export function useData(avisar, userId) {
 
   const falhou = (error, t) => {
     if (!error) return false;
-    avisarRef.current?.('Não foi possível salvar: ' + error.message);
+    avisarRef.current?.('Não foi possível salvar: ' + explicarErro(error));
+    console.error('[EQL] erro ao salvar em', t, error);
     recarregar(t);
     return true;
+  };
+  // Se o banco ainda não tem alguma coluna (arquivo SQL não rodado), tira o campo e tenta de novo
+  const comTolerancia = async (fazer, campos) => {
+    let dados = Array.isArray(campos) ? campos.map((c) => ({ ...c })) : { ...campos };
+    for (let i = 0; i < 6; i++) {
+      const { error } = await fazer(dados);
+      const col = error && colunaFaltando(error);
+      if (!col) return { error };
+      console.warn('[EQL] coluna inexistente no banco, ignorando:', col);
+      dados = Array.isArray(dados) ? dados.map(({ [col]: _, ...r }) => r) : (({ [col]: _, ...r }) => r)(dados);
+    }
+    return { error: { message: 'colunas faltando no banco' } };
   };
   const tmp = () => 'tmp-' + Math.random().toString(36).slice(2);
 
@@ -82,14 +95,14 @@ export function useData(avisar, userId) {
     const lista = Array.isArray(linhas) ? linhas : [linhas];
     if (!lista.length) return true;
     if (otimista) setTabela(t, (xs) => [...xs, ...lista.map((l) => ({ id: tmp(), ...l }))]);
-    const { error } = await supabase.from(t).insert(lista);
+    const { error } = await comTolerancia((l) => supabase.from(t).insert(l), lista);
     if (!falhou(error, t)) recarregar(t);
     return !error;
   };
   const atualizar = async (t, id, campos) => {
     setTabela(t, (xs) => xs.map((x) => (x.id === id ? { ...x, ...campos } : x)));
     if (String(id).startsWith('tmp-')) return true;
-    const { error } = await supabase.from(t).update(campos).eq('id', id);
+    const { error } = await comTolerancia((c) => supabase.from(t).update(c).eq('id', id), campos);
     falhou(error, t);
     return !error;
   };
@@ -102,7 +115,9 @@ export function useData(avisar, userId) {
 
   // ---------- Demandas ----------
   const salvarDemanda = async (d) => {
-    const { id, criado_em, atualizado_em, ...campos } = d;
+    const { id } = d;
+    // envia só as colunas que a tela edita (nada de campos calculados)
+    const campos = Object.fromEntries(Object.entries(d).filter(([k]) => CAMPOS_DEMANDA.includes(k)));
     if (id) { const ok = await atualizar('demandas', id, campos); recarregar('demandas'); return ok; }
     return inserir('demandas', campos, false);
   };
@@ -207,4 +222,23 @@ function limiteDias() {
   const d = new Date();
   d.setDate(d.getDate() - 120);
   return d.toISOString().slice(0, 10);
+}
+
+const CAMPOS_DEMANDA = ['empresa', 'grupo', 'nome', 'descricao', 'fase', 'percentual', 'inicio', 'entrega', 'pagamento',
+  'qtd_total', 'qtd_produzida', 'unidade', 'arquivada', 'produto', 'especificacao'];
+
+function colunaFaltando(error) {
+  const m = /Could not find the '([^']+)' column/i.exec(error.message || '') ||
+    /column "([^"]+)" of relation .* does not exist/i.exec(error.message || '');
+  return m ? m[1] : null;
+}
+
+function explicarErro(error) {
+  const msg = error.message || String(error);
+  if (/demandas_fase_check/.test(msg)) return 'a fase "Estoque" ainda não está liberada no banco (rode o arquivo 06_fabrica_eko.sql no Supabase).';
+  if (/row-level security|permission denied/i.test(msg)) return 'seu tipo de acesso não permite essa alteração.';
+  if (/invalid input syntax for type date/i.test(msg)) return 'data inválida.';
+  if (/duplicate key/i.test(msg)) return 'esse registro já existe.';
+  if (/JWT|token/i.test(msg)) return 'sua sessão expirou, saia e entre de novo.';
+  return msg;
 }
