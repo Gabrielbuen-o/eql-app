@@ -13,6 +13,7 @@ const TABELAS = {
   custos_funcionarios: ['vigente_desde', true, false],
   financeiro_demandas: ['atualizado_em', true, false],
   custos_lancamentos: ['dia', true, false],
+  relatorios: ['criado_em', true, true],
 };
 const NOMES = Object.keys(TABELAS);
 
@@ -234,11 +235,36 @@ export function useData(avisar, userId) {
     return !error;
   };
   const lancarCusto = (linha) => inserir('custos_lancamentos', linha);
+
+  // ---------- Relatórios de obra ----------
+  // arquivos já comprimidos pelo app; cada foto vai com uma miniatura para as listas ficarem leves
+  const enviarArquivo = async (caminho, blob, contentType) => {
+    for (let tentativa = 0; tentativa < 3; tentativa++) {
+      const { error } = await supabase.storage.from('relatorios').upload(caminho, blob, { contentType, upsert: true, cacheControl: '31536000' });
+      if (!error) return { ok: true };
+      if (tentativa === 2) return { ok: false, erro: explicarErro(error) };
+      await new Promise((r) => setTimeout(r, 1200 * (tentativa + 1)));
+    }
+    return { ok: false };
+  };
+  const urlArquivo = (caminho) => (caminho ? supabase.storage.from('relatorios').getPublicUrl(caminho).data.publicUrl : '');
+  const salvarRelatorio = async (r) => {
+    const { error } = await supabase.from('relatorios').insert({ ...r, autor_id: userId });
+    if (falhou(error, 'relatorios')) return false;
+    recarregar('relatorios');
+    return true;
+  };
+  const apagarRelatorio = async (r) => {
+    await apagar('relatorios', r.id);
+    const caminhos = (r.arquivos || []).flatMap((a) => [a.caminho, a.miniatura]).filter(Boolean);
+    if (caminhos.length) await supabase.storage.from('relatorios').remove(caminhos);
+  };
   const apagarLancamento = (id) => apagar('custos_lancamentos', id);
 
   return {
     ...db, carregando, online, faltando,
     definirCusto, apagarCusto, salvarFinanceiro, lancarCusto, apagarLancamento,
+    enviarArquivo, urlArquivo, salvarRelatorio, apagarRelatorio,
     atualizarPerfil, enviarFoto,
     salvarDemanda, excluirDemanda,
     adicionarFuncionario, atualizarFuncionario, salvarVeiculo,
@@ -255,7 +281,7 @@ function limiteDias() {
 }
 
 // recursos que dependem de arquivos SQL opcionais: não geram aviso ao carregar
-const OPCIONAIS = ['custos_funcionarios', 'financeiro_demandas', 'custos_lancamentos'];
+const OPCIONAIS = ['custos_funcionarios', 'financeiro_demandas', 'custos_lancamentos', 'relatorios'];
 
 const CAMPOS_DEMANDA = ['empresa', 'grupo', 'nome', 'descricao', 'fase', 'percentual', 'inicio', 'entrega', 'pagamento',
   'qtd_total', 'qtd_produzida', 'unidade', 'arquivada', 'produto', 'especificacao'];
@@ -268,7 +294,10 @@ function colunaFaltando(error) {
 
 function explicarErro(error) {
   const msg = error.message || String(error);
-  if (/demandas_fase_check/.test(msg)) return 'a fase "Estoque" ainda não está liberada no banco (rode o arquivo 06_fabrica_eko.sql no Supabase).';
+  if (/demandas_fase_check/.test(msg)) return 'a fase "Estoque" ainda não está liberada no banco (rode o arquivo 08_eko_e_custos_juntos.sql no Supabase).';
+  if (/bucket not found|relatorios.*(does not exist|schema cache)|(does not exist|schema cache).*relatorios/i.test(msg)) return 'os relatórios ainda não estão liberados no banco (rode o arquivo 09_relatorios_de_obra.sql no Supabase).';
+  if (/payload too large|exceeded the maximum allowed size|too large/i.test(msg)) return 'arquivo grande demais (máximo 50 MB).';
+  if (/failed to fetch|network|load failed/i.test(msg)) return 'sem internet no momento. Tente de novo quando o sinal voltar.';
   if (/row-level security|permission denied/i.test(msg)) return 'seu tipo de acesso não permite essa alteração.';
   if (/invalid input syntax for type date/i.test(msg)) return 'data inválida.';
   if (/duplicate key/i.test(msg)) return 'esse registro já existe.';

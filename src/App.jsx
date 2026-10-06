@@ -1,4 +1,4 @@
-import { Component, useCallback, useEffect, useState } from 'react';
+import { Component, useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SLOGAN, aplicarPrefs, configurado, papelNome, permissoes, supabase } from './lib.js';
 import { useData } from './useData.js';
@@ -11,6 +11,9 @@ import { Avatar } from './Avatar.jsx';
 import { Resultados } from './Resultados.jsx';
 import { Inicio } from './Inicio.jsx';
 import { Fabrica } from './Fabrica.jsx';
+import { AppCampo } from './Campo.jsx';
+import { Relatorios } from './Relatorios.jsx';
+import { tipoRelatorio } from './lib.js';
 
 // mostrar: quem vê a aba (a partir das permissões)
 const ABAS = [
@@ -23,7 +26,7 @@ const ABAS = [
   { id: 'frotas', nome: 'Frotas', mostrar: (p) => p.gestao },
   { id: 'financeiro', nome: 'Financeiro', mostrar: (p) => p.verFinanceiro },
   { id: 'rh', nome: 'RH & Ponto', mostrar: (p) => p.gestao, breve: 'Cadastro de funcionários, ponto diário e documentos.' },
-  { id: 'relatorios', nome: 'Relatórios de obra', mostrar: (p) => p.verOperacao, breve: 'Formulários por etapa com fotos, no padrão exigido pela Help e pela Agplan.' },
+  { id: 'relatorios', nome: 'Relatórios de obra', mostrar: (p) => p.gestao },
   { id: 'aquisicao', nome: 'Aquisição', mostrar: (p) => p.admin, breve: 'Canais e funis de aquisição, investimento e retorno por canal.' },
   { id: 'config', nome: 'Configurações', mostrar: () => true },
 ];
@@ -86,12 +89,38 @@ function Painel({ usuario }) {
     if (eu) await dados.atualizarPerfil(eu.id, { preferencias: p });
   };
 
+  // relatório novo chegando do campo: avisa quem está no escritório
+  const vistos = useRef(null);
+  useEffect(() => {
+    const lista = dados.relatorios || [];
+    if (dados.carregando) return;
+    if (!vistos.current) { vistos.current = new Set(lista.map((r) => r.id)); return; }
+    const novos = lista.filter((r) => !vistos.current.has(r.id));
+    novos.forEach((r) => vistos.current.add(r.id));
+    if (!pode.gestao || !novos.length) return;
+    const r = novos[novos.length - 1];
+    if (r.autor_id === usuario.id) return;
+    const obra = dados.demandas.find((d) => d.id === r.demanda_id)?.nome || 'obra';
+    const quem = dados.funcionarios.find((f) => f.id === r.funcionario_id)?.nome;
+    avisar(`Novo relatório: ${tipoRelatorio[r.tipo]?.nome || r.tipo} · ${obra}${quem ? ' · ' + quem : ''}`);
+  }, [dados.relatorios, dados.carregando]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     document.body.classList.toggle('tv', tv);
     const sair = () => !document.fullscreenElement && setTv(false);
     document.addEventListener('fullscreenchange', sair);
     return () => document.removeEventListener('fullscreenchange', sair);
   }, [tv]);
+
+  // pessoal de campo: uma tela só (obra do dia + novo relatório)
+  if (pode.soCampo) {
+    return (
+      <>
+        {dados.carregando ? <div className="login"><p className="empty">Carregando…</p></div> : <AppCampo dados={dados} eu={eu} avisar={avisar} />}
+        {toast && createPortal(<div className="toast" role="status">{toast}</div>, document.body)}
+      </>
+    );
+  }
 
   return (
     <div className="page">
@@ -138,6 +167,8 @@ function Painel({ usuario }) {
             <Frotas dados={dados} />
           ) : atual.id === 'inicio' ? (
             <Inicio dados={dados} eu={eu} irPara={irPara} tv={tv} setTv={setTv} />
+          ) : atual.id === 'relatorios' ? (
+            <Relatorios dados={dados} pode={pode} />
           ) : atual.id === 'financeiro' ? (
             <Resultados dados={dados} porDemanda={custos.porDemanda} />
           ) : atual.id === 'config' ? (

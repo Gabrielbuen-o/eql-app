@@ -127,7 +127,7 @@ export const SLOGAN = 'Toda obra sob controle';
 export const PAPEIS = [
   { id: 'admin', nome: 'Administrador', desc: 'Tudo, inclusive usuários e acessos' },
   { id: 'gerente', nome: 'Gerente', desc: 'Demandas, agenda, equipes e frotas' },
-  { id: 'campo', nome: 'Campo', desc: 'Vê a operação e atualiza o andamento das demandas' },
+  { id: 'campo', nome: 'Campo', desc: 'Só a tela de campo: obra do dia e envio de relatórios com fotos' },
   { id: 'cliente', nome: 'Cliente', desc: 'Vê só as demandas do seu grupo (ex.: Help)' },
 ];
 export const papelNome = Object.fromEntries(PAPEIS.map((p) => [p.id, p.nome]));
@@ -141,6 +141,7 @@ export function permissoes(papel) {
     editarAndamento: gestao || papel === 'campo',
     verOperacao: papel !== 'cliente',        // agenda, equipes, frotas
     verFinanceiro: papel === 'admin',
+    soCampo: papel === 'campo',              // app do campo: só a tela de relatórios
   };
 }
 
@@ -178,4 +179,48 @@ export async function reduzirImagem(arquivo, max = 320) {
   c.width = c.height = Math.min(max, lado);
   c.getContext('2d').drawImage(bmp, (bmp.width - lado) / 2, (bmp.height - lado) / 2, lado, lado, 0, 0, c.width, c.height);
   return new Promise((ok) => c.toBlob(ok, 'image/jpeg', 0.85));
+}
+
+// ---------- Relatórios de obra ----------
+export const TIPOS_RELATORIO = [
+  { id: 'inicio_dia', nome: 'Início do dia', curto: 'Início', desc: 'Como a obra está ao chegar', ativo: true },
+  { id: 'fim_dia', nome: 'Final do dia', curto: 'Fim', desc: 'O que foi feito hoje', ativo: true },
+  { id: 'limpeza', nome: 'Limpeza do dia', curto: 'Limpeza', desc: 'Local limpo e organizado', ativo: true },
+  { id: 'rfi', nome: 'RFI', curto: 'RFI', desc: 'Em breve', ativo: false },
+  { id: 'ancoragem', nome: 'Ancoragem', curto: 'Ancoragem', desc: 'Em breve', ativo: false },
+  { id: 'entrega_obra', nome: 'Entrega de obra', curto: 'Entrega', desc: 'Em breve', ativo: false },
+];
+export const tipoRelatorio = Object.fromEntries(TIPOS_RELATORIO.map((t) => [t.id, t]));
+export const FOTOS_MIN = 5;
+export const FOTOS_MAX = 30;
+
+export function saudacao(d = new Date()) {
+  const h = d.getHours();
+  return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+}
+
+// Uma mensagem por dia (todo mundo vê a mesma no mesmo dia)
+const MENSAGENS = [
+  'Obra bem registrada é obra bem entregue. Capricha nas fotos!',
+  'Segurança primeiro: capacete, luva e atenção o dia todo.',
+  'Cada detalhe bem feito hoje evita retrabalho amanhã.',
+  'Foto boa é foto com luz e ângulo aberto. Mostra o serviço todo.',
+  'Obrigado pelo empenho. A EQL é feita por quem está na obra.',
+  'Começou bem, termina bem: relatório de início e de fim, combinado?',
+  'Local limpo é local seguro. Organização também é qualidade.',
+  'Dúvida na obra? Pergunta antes de fazer. Melhor que refazer.',
+  'Hidrata, faz pausa e se cuida. Você é o mais importante da obra.',
+  'O cliente vê o resultado; as fotos mostram o caminho. Registra tudo.',
+  'Trabalho em equipe rende mais. Dá uma força pro colega hoje.',
+  'Material no lugar certo economiza tempo e evita acidente.',
+  'Fez bem feito? Mostra! Foto de perto e foto de longe.',
+  'Toda obra sob controle começa com você. Bom trabalho!',
+  'Viu algo errado ou perigoso? Avisa na hora e registra com foto.',
+  'Pontualidade e capricho: é isso que faz a EQL ser chamada de novo.',
+  'Antes de ir embora: ferramentas guardadas e área limpa.',
+  'Um passo de cada vez, com qualidade. Bora pra cima!',
+];
+export function mensagemDoDia(dia = hoje()) {
+  const n = Math.round(parse(dia).getTime() / 86400000);
+  return MENSAGENS[((n % MENSAGENS.length) + MENSAGENS.length) % MENSAGENS.length];
 }

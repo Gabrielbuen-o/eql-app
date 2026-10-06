@@ -185,6 +185,14 @@ function LinhaUsuario({ p, dados, online, admin, eu, avisar, verAtividades }) {
             <datalist id="grupos-clientes">{grupos.map((g) => <option key={g} value={g} />)}</datalist>
           </>
         )}
+        {admin && p.papel === 'campo' && (
+          // login individual de campo: liga ao funcionário (login compartilhado: deixe "pergunta no celular")
+          <select className="input" aria-label={`Funcionário de ${p.nome || p.email}`} value={p.funcionario_id || ''}
+            onChange={(e) => dados.atualizarPerfil(p.id, { funcionario_id: e.target.value || null })}>
+            <option value="">Funcionário: pergunta no celular</option>
+            {dados.funcionarios.filter((f) => f.ativo !== false).map((f) => <option key={f.id} value={f.id}>Funcionário: {f.nome}</option>)}
+          </select>
+        )}
       </div>
       <div className="times">
         <span style={{ color: online ? 'var(--green-dot)' : undefined, fontWeight: online ? 700 : 500 }}>
