@@ -26,9 +26,9 @@ export function Equipe({ dados, pode = {} }) {
     if (!editando.nome.trim()) return;
     await dados.atualizarFuncionario(editando.id, { nome: editando.nome.trim(), funcao: editando.funcao?.trim() || null });
     if (admin && editando.custo !== '') {
-      const valor = Math.round(Number(String(editando.custo).replace(',', '.')) * 100) / 100;
+      const valor = lerValor(editando.custo);
       const atual = custoAtual(editando.id, dados.custos_funcionarios);
-      if (!Number.isNaN(valor) && (!atual || Number(atual.custo_diario) !== valor || atual.vigente_desde !== editando.desde)) {
+      if (valor != null && (!atual || Number(atual.custo_diario) !== valor || atual.vigente_desde !== editando.desde)) {
         await dados.definirCusto(editando.id, valor, editando.desde || dia);
       }
     }
@@ -36,7 +36,7 @@ export function Equipe({ dados, pode = {} }) {
   };
   const abrirEdicao = (f) => {
     const c = admin ? custoAtual(f.id, dados.custos_funcionarios) : null;
-    setEditando({ id: f.id, nome: f.nome, funcao: f.funcao, custo: c ? String(c.custo_diario).replace('.', ',') : '', desde: dia });
+    setEditando({ id: f.id, nome: f.nome, funcao: f.funcao, custo: c ? Number(c.custo_diario).toLocaleString('pt-BR', { minimumFractionDigits: Number.isInteger(Number(c.custo_diario)) ? 0 : 2, maximumFractionDigits: 2 }) : '', desde: dia });
   };
   const custoHoje = (id) => custoAtual(id, dados.custos_funcionarios);
   const historico = (id) => dados.custos_funcionarios.filter((c) => c.funcionario_id === id)
@@ -76,58 +76,31 @@ export function Equipe({ dados, pode = {} }) {
         <div className="people">
           {ativos.map((f) => {
             const onde = ondeHoje(f.id);
-            const ed = editando?.id === f.id;
             return (
               <div key={f.id} className="person">
                 <div className="avatar">{iniciais(f.nome)}</div>
                 <div className="info">
-                  {ed ? (
-                    <>
-                      <input aria-label="Nome" value={editando.nome} onChange={(e) => setEditando({ ...editando, nome: e.target.value })} />
-                      <input aria-label="Função" placeholder="Função" value={editando.funcao || ''} onChange={(e) => setEditando({ ...editando, funcao: e.target.value })} />
-                      {admin && (
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <span className="sub">Custo por dia (R$)</span>
-                            <input inputMode="decimal" placeholder="Ex.: 250" value={editando.custo} onChange={(e) => setEditando({ ...editando, custo: e.target.value })} />
-                          </label>
-                          <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <span className="sub">Vale a partir de</span>
-                            <input type="date" value={editando.desde} onChange={(e) => setEditando({ ...editando, desde: e.target.value })} />
-                          </label>
-                        </div>
-                      )}
-                      {admin && historico(f.id).length > 0 && (
-                        <span className="sub">Histórico: {historico(f.id).map((c) => `${brlCentavos(c.custo_diario)} desde ${fmt(c.vigente_desde)}`).join(' · ')}</span>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <span className="nm">{f.nome}</span>
-                      {admin && <span className="sub" style={{ fontWeight: 700, color: custoHoje(f.id) ? 'var(--brand-text)' : 'var(--late-ink)' }}>
-                        {custoHoje(f.id) ? `${brlCentavos(custoHoje(f.id).custo_diario)} por dia` : 'Custo não cadastrado'}
-                      </span>}
-                      <span className="sub">{[f.funcao, ausHoje(f.id) ? (ausHoje(f.id).tipo === 'ferias' ? 'De férias hoje' : 'De folga hoje') : onde.length ? 'Hoje: ' + onde.join(', ') : 'Livre hoje'].filter(Boolean).join(' · ')}</span>
-                    </>
-                  )}
+                  <span className="nm">{f.nome}</span>
+                  {admin && <span className="sub" style={{ fontWeight: 700, color: custoHoje(f.id) ? 'var(--brand-text)' : 'var(--late-ink)' }}>
+                    {custoHoje(f.id) ? `${brlCentavos(custoHoje(f.id).custo_diario)} por dia` : 'Custo não cadastrado'}
+                  </span>}
+                  <span className="sub">{[f.funcao, ausHoje(f.id) ? (ausHoje(f.id).tipo === 'ferias' ? 'De férias hoje' : 'De folga hoje') : onde.length ? 'Hoje: ' + onde.join(', ') : 'Livre hoje'].filter(Boolean).join(' · ')}</span>
                 </div>
-                {ed ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <button type="button" className="mini lime" onClick={salvarEdicao}>Salvar</button>
-                    <button type="button" className="mini" onClick={() => setEditando(null)}>Cancelar</button>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <button type="button" className="mini" onClick={() => abrirEdicao(f)}>Editar</button>
-                    <button type="button" className="mini" onClick={() => dados.atualizarFuncionario(f.id, { ativo: false })}>Remover</button>
-                  </div>
-                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <button type="button" className="mini" onClick={() => abrirEdicao(f)}>{admin ? 'Editar / custo' : 'Editar'}</button>
+                  <button type="button" className="mini" onClick={() => dados.atualizarFuncionario(f.id, { ativo: false })}>Remover</button>
+                </div>
               </div>
             );
           })}
         </div>
         {!ativos.length && <p className="empty">Nenhum funcionário cadastrado.</p>}
       </section>
+
+      {editando && (
+        <FuncionarioModal editando={editando} setEditando={setEditando} admin={admin} historico={historico(editando.id)}
+          onSalvar={salvarEdicao} onFechar={() => setEditando(null)} />
+      )}
 
       {inativos.length > 0 && (
         <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -221,5 +194,89 @@ function Ausencias({ dados, ativos }) {
         <p className="empty" style={{ padding: 0 }}>Nenhuma folga ou férias marcada daqui pra frente. Também dá para arrastar na agenda, na faixa “Fora da obra”.</p>
       )}
     </section>
+  );
+}
+
+// aceita "250", "250,50", "1.250,00" e "250.50"
+function lerValor(s) {
+  if (s === '' || s == null) return null;
+  let t = String(s).replace(/[^\d.,]/g, '');
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  else if (!/^\d+\.\d{1,2}$/.test(t)) t = t.replace(/\./g, '');
+  const n = Number(t);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+}
+
+function FuncionarioModal({ editando, setEditando, admin, historico, onSalvar, onFechar }) {
+  const [salvando, setSalvando] = useState(false);
+  const set = (k) => (e) => setEditando({ ...editando, [k]: e.target.value });
+  const valor = lerValor(editando.custo);
+  const salvar = async (e) => {
+    e.preventDefault();
+    if (!editando.nome.trim()) return;
+    setSalvando(true);
+    await onSalvar();
+    setSalvando(false);
+  };
+  return (
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onFechar()} onKeyDown={(e) => e.key === 'Escape' && onFechar()}>
+      <form className="modal" role="dialog" aria-modal="true" aria-label={`Editar ${editando.nome}`} onSubmit={salvar} style={{ maxWidth: 520 }}>
+        <div className="modal-head">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="avatar lg">{iniciais(editando.nome)}</div>
+            <div>
+              <span className="modal-kicker">Funcionário</span>
+              <h2>{editando.nome || 'Sem nome'}</h2>
+            </div>
+          </div>
+          <button type="button" className="icon-btn" aria-label="Fechar" onClick={onFechar}>×</button>
+        </div>
+
+        <div className="grid2">
+          <label className="field"><span>Nome</span>
+            <input value={editando.nome} onChange={set('nome')} required />
+          </label>
+          <label className="field"><span>Função</span>
+            <input value={editando.funcao || ''} onChange={set('funcao')} placeholder="Ex.: pedreiro, encarregado" />
+          </label>
+        </div>
+
+        {admin && (
+          <div className="custo-box">
+            <span className="modal-kicker">Quanto custa por dia</span>
+            <div className="money-input">
+              <span aria-hidden="true">R$</span>
+              <input autoFocus inputMode="decimal" aria-label="Custo por dia em reais" placeholder="0,00"
+                value={editando.custo} onChange={set('custo')} />
+              <span className="per" aria-hidden="true">/ dia</span>
+            </div>
+            <div className="grid2" style={{ alignItems: 'end' }}>
+              <label className="field"><span>Vale a partir de</span>
+                <input type="date" value={editando.desde} onChange={set('desde')} />
+              </label>
+              <p className="note" style={{ paddingBottom: 6 }}>
+                {valor != null ? <>≈ <b>{brl(valor * 22)}</b> por mês (22 dias)</> : 'Inclua salário, encargos e alimentação.'}
+              </p>
+            </div>
+            {historico.length > 0 && (
+              <div className="hist">
+                <span className="modal-kicker">Histórico de valores</span>
+                <ul>
+                  {[...historico].reverse().map((c) => (
+                    <li key={c.id}><span>desde {fmt(c.vigente_desde)}</span><b>{brlCentavos(c.custo_diario)}</b></li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <p className="note">Um valor novo vale a partir da data escolhida. Os dias anteriores continuam com o valor antigo no custo das obras.</p>
+          </div>
+        )}
+
+        <div className="modal-foot" style={{ justifyContent: 'flex-end' }}>
+          <button type="button" className="pill ghost" onClick={onFechar}>Cancelar</button>
+          <button type="submit" className="pill lime" disabled={salvando || !editando.nome.trim()}>{salvando ? 'Salvando…' : 'Salvar'}</button>
+        </div>
+      </form>
+    </div>
   );
 }

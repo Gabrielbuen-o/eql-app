@@ -497,3 +497,21 @@ table.fin { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 .fin tr.subtotal th, .fin tr.subtotal td { font-weight: 800; background: var(--soft); }
 .fin td.pos { color: var(--brand-text); font-weight: 700; }
 .fin td.bad { color: var(--red); font-weight: 700; }
+
+/* ---------- Custo do funcionário ---------- */
+.custo-box { background: var(--soft); border-radius: var(--radius-m); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.money-input {
+  display: flex; align-items: center; gap: 10px; background: var(--field); border: 2px solid var(--line);
+  border-radius: var(--radius-m); padding: 0 18px; min-height: 68px;
+}
+.money-input:focus-within { border-color: var(--brand); }
+.money-input span { font-size: 22px; font-weight: 700; color: var(--muted); }
+.money-input .per { font-size: 15px; font-weight: 600; }
+.money-input input {
+  flex: 1; min-width: 0; border: 0; outline: none; background: transparent; color: var(--ink);
+  font-size: 30px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+}
+.hist ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.hist li { display: flex; justify-content: space-between; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.hist li:last-child { border-bottom: 0; }
+.hist li span { color: var(--muted); }
