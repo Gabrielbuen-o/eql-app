@@ -1,9 +1,29 @@
+import { useEffect, useState } from 'react';
+import { PainelDesktop } from './PainelDesktop.jsx';
 import { empresaPorId, faseNome, hoje, ordemGrupo, rotuloPrazo, situacao } from './lib.js';
 
 const PESO = { atrasada: 0, urgente: 1, semana: 2, ok: 3, sem: 4 };
 
 // Início: visão rápida da operação de hoje (pensada para o celular)
-export function Inicio({ dados, eu, irPara }) {
+export function Inicio(props) {
+  const grande = useTelaGrande();
+  return grande ? <PainelDesktop {...props} /> : <InicioCelular {...props} />;
+}
+
+// computador / TV: painel completo; celular e tablet em pé: versão enxuta
+function useTelaGrande() {
+  const consulta = '(min-width: 1100px)';
+  const [ok, setOk] = useState(() => window.matchMedia?.(consulta).matches ?? false);
+  useEffect(() => {
+    const mq = window.matchMedia?.(consulta);
+    const f = () => setOk(mq.matches);
+    mq?.addEventListener?.('change', f);
+    return () => mq?.removeEventListener?.('change', f);
+  }, []);
+  return ok;
+}
+
+function InicioCelular({ dados, eu, irPara }) {
   const dia = hoje();
   const abertas = dados.demandas.filter((d) => !d.arquivada);
   const sit = (d) => situacao(d, dia);

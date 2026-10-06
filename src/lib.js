@@ -8,9 +8,9 @@ export const supabase = configurado ? createClient(SUPABASE_URL, SUPABASE_ANON_K
 
 // ---------- Empresas, fases ----------
 export const EMPRESAS = [
-  { id: 'engenharia', nome: 'EQL Engenharia', curto: 'Engenharia', cor: '#CFC8F5' },
-  { id: 'impermeabilizacao', nome: 'EQL Impermeabilização', curto: 'Impermeabilização', cor: '#4F97E0' },
-  { id: 'eko', nome: 'EQL Eko', curto: 'Eko', cor: '#A9CEF5' },
+  { id: 'engenharia', nome: 'EQL Engenharia', curto: 'Engenharia', cor: 'var(--s-eng)' },
+  { id: 'impermeabilizacao', nome: 'EQL Impermeabilização', curto: 'Impermeabilização', cor: 'var(--s-imp)' },
+  { id: 'eko', nome: 'EQL Eko', curto: 'Eko', cor: 'var(--s-eko)' },
 ];
 export const empresaPorId = Object.fromEntries(EMPRESAS.map((e) => [e.id, e]));
 

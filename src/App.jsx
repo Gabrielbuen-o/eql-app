@@ -131,7 +131,7 @@ function Painel({ usuario }) {
           ) : atual.id === 'frotas' ? (
             <Frotas dados={dados} />
           ) : atual.id === 'inicio' ? (
-            <Inicio dados={dados} eu={eu} irPara={irPara} />
+            <Inicio dados={dados} eu={eu} irPara={irPara} tv={tv} setTv={setTv} />
           ) : atual.id === 'financeiro' ? (
             <Resultados dados={dados} porDemanda={custos.porDemanda} />
           ) : atual.id === 'config' ? (
@@ -157,7 +157,7 @@ function Painel({ usuario }) {
 function Marca() {
   return (
     <div className="brand">
-      <div className="brand-mark" aria-hidden="true">EQL</div>
+      <img className="brand-logo" src="/img/logo-96.png" alt="" width="44" height="44" />
       <div>
         <div className="brand-name">EQL Group</div>
         <div className="brand-sub">{SLOGAN}</div>
