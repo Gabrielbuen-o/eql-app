@@ -189,7 +189,7 @@ function LinhaUsuario({ p, dados, online, admin, eu, avisar, verAtividades }) {
           // login individual de campo: liga ao funcionário (login compartilhado: deixe "pergunta no celular")
           <select className="input" aria-label={`Funcionário de ${p.nome || p.email}`} value={p.funcionario_id || ''}
             onChange={(e) => dados.atualizarPerfil(p.id, { funcionario_id: e.target.value || null })}>
-            <option value="">Funcionário: pergunta no celular</option>
+            <option value="">Funcionário: perguntar</option>
             {dados.funcionarios.filter((f) => f.ativo !== false).map((f) => <option key={f.id} value={f.id}>Funcionário: {f.nome}</option>)}
           </select>
         )}

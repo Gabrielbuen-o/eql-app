@@ -869,3 +869,16 @@ button.rel-pill.enviado:hover { filter: brightness(1.1); }
   .rel-mes-info { font-size: 10px; }
   .campo-grade { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* ---------- Desfazer no registro de atividades ---------- */
+.log-lado { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; max-width: 46%; text-align: right; }
+.log-desfazer { border: 1px solid var(--line-strong); background: var(--card); border-radius: 999px; min-height: 30px; padding: 0 12px; font-size: 12px; font-weight: 700; color: var(--brand-text); white-space: nowrap; }
+.log-desfazer:hover:not(:disabled) { border-color: var(--brand); }
+.log-desfazer:disabled { opacity: .6; cursor: default; }
+.log-desfeita { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.log-item.desfeita .log-text, .log-item.desfeita .log-changes { text-decoration: line-through; text-decoration-color: var(--line-strong); opacity: .7; }
+.log-tag { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--brand-text); background: var(--chip); border-radius: 999px; padding: 1px 8px; }
+.log-confirma { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; font-size: 12px; }
+.log-confirma .pill { min-height: 30px; font-size: 12px; padding: 0 12px; }
+.log-erro { font-size: 12px; color: var(--late-ink); font-weight: 600; }
+@media (max-width: 640px) { .log-item { flex-wrap: wrap; } .log-lado { max-width: none; width: 100%; align-items: flex-start; text-align: left; padding-left: 44px; } }

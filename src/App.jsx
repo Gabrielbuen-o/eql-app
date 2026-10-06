@@ -204,7 +204,8 @@ function Marca() {
 }
 
 function Login() {
-  const [email, setEmail] = useState('');
+  // último e-mail usado fica salvo neste aparelho (a senha fica com o gerenciador de senhas do navegador)
+  const [email, setEmail] = useState(() => lerLocal('eql-ultimo-email', false) || '');
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -213,19 +214,28 @@ function Login() {
     setErro(''); setEnviando(true);
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: senha });
     setEnviando(false);
-    if (error) setErro(error.message === 'Invalid login credentials' ? 'E-mail ou senha incorretos.' : error.message);
+    if (error) { setErro(error.message === 'Invalid login credentials' ? 'E-mail ou senha incorretos.' : error.message); return; }
+    gravarLocal('eql-ultimo-email', email.trim(), false);
+    // Chrome/Android: oferece salvar a senha (o app não recarrega a página, então avisamos o navegador)
+    try {
+      if (window.PasswordCredential && navigator.credentials?.store) {
+        await navigator.credentials.store(new window.PasswordCredential({ id: email.trim(), password: senha, name: email.trim() }));
+      }
+    } catch { /* navegador sem suporte: tudo bem */ }
   };
   return (
     <div className="login">
-      <form className="card" onSubmit={entrar}>
+      <form className="card" id="login" method="post" action="/" onSubmit={entrar} autoComplete="on">
         <Marca />
         <h1 style={{ fontSize: 24, fontWeight: 800 }}>Entrar</h1>
         {erro && <div className="err" role="alert">{erro}</div>}
-        <label className="field"><span>E-mail</span>
-          <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <label className="field" htmlFor="login-email"><span>E-mail</span>
+          <input id="login-email" name="email" type="email" inputMode="email" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false}
+            value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus={!email} />
         </label>
-        <label className="field"><span>Senha</span>
-          <input type="password" autoComplete="current-password" value={senha} onChange={(e) => setSenha(e.target.value)} required />
+        <label className="field" htmlFor="login-senha"><span>Senha</span>
+          <input id="login-senha" name="password" type="password" autoComplete="current-password"
+            value={senha} onChange={(e) => setSenha(e.target.value)} required autoFocus={!!email} />
         </label>
         <button type="submit" className="pill lime" style={{ minHeight: 48 }} disabled={enviando}>{enviando ? 'Entrando…' : 'Entrar'}</button>
       </form>

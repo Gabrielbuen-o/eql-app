@@ -86,6 +86,10 @@ export function Atividades({ dados, filtroUsuario, setFiltroUsuario }) {
   }, []);
 
   const perfil = Object.fromEntries(dados.perfis.map((p) => [p.id, p]));
+  // quantas linhas foram feitas no mesmo clique (desfazer leva todas juntas)
+  const porTransacao = {};
+  lista.forEach((a) => { if (a.transacao != null) porTransacao[a.transacao] = (porTransacao[a.transacao] || 0) + 1; });
+  const recarregarLista = () => setVersao((v) => v + 1);
   const nomes = { demandas: Object.fromEntries(dados.demandas.map((d) => [d.id, d.nome])) };
 
   // agrupa por dia
@@ -126,11 +130,12 @@ export function Atividades({ dados, filtroUsuario, setFiltroUsuario }) {
             const p = perfil[a.usuario_id];
             const mud = Object.entries(a.mudancas || {}).filter(([k]) => !OCULTAR.has(k));
             return (
-              <div key={a.id} className="log-item">
+              <div key={a.id} className={'log-item' + (a.desfeita_em ? ' desfeita' : '')}>
                 <Avatar perfil={p} nome="?" />
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div className="log-text">
                     <b>{p?.nome || p?.email || 'Usuário removido'}</b> {verbo(a)} <b>{a.rotulo || ''}</b>
+                    {a.desfaz_id && <span className="log-tag">desfazendo uma ação anterior</span>}
                   </div>
                   {mud.length > 0 && (
                     <ul className="log-changes">
@@ -140,7 +145,10 @@ export function Atividades({ dados, filtroUsuario, setFiltroUsuario }) {
                     </ul>
                   )}
                 </div>
-                <span className="log-time">{new Date(a.quando).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                <div className="log-lado">
+                  <span className="log-time">{new Date(a.quando).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <Desfazer a={a} grupo={a.transacao != null ? porTransacao[a.transacao] || 1 : 1} perfil={perfil} onFeito={recarregarLista} />
+                </div>
               </div>
             );
           })}
@@ -151,5 +159,56 @@ export function Atividades({ dados, filtroUsuario, setFiltroUsuario }) {
         <button type="button" className="pill ghost" style={{ alignSelf: 'center' }} onClick={() => setLimite((l) => l + 100)}>Carregar mais</button>
       )}
     </section>
+  );
+}
+
+// Botão "Desfazer" de cada atividade (só administradores veem o registro)
+function Desfazer({ a, grupo, perfil, onFeito }) {
+  const [etapa, setEtapa] = useState('nada'); // nada | confirmar | enviando | conflito | erro
+  const [msg, setMsg] = useState('');
+  if (a.desfeita_em) {
+    const quem = perfil[a.desfeita_por];
+    return <span className="log-desfeita">Desfeito{quem ? ` por ${quem.nome?.split(' ')[0] || quem.email}` : ''} · {new Date(a.desfeita_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>;
+  }
+  if (!('transacao' in a)) return null; // banco ainda sem o arquivo 10
+  if (a.tabela === 'perfis' && a.acao !== 'alterou') return null;
+  if (a.acao === 'apagou' && !a.dados) return <span className="log-desfeita" title="Apagado antes do recurso de desfazer existir">sem cópia</span>;
+
+  const rodar = async (forcar) => {
+    setEtapa('enviando');
+    const { error } = await supabase.rpc('desfazer_atividade', { p_id: a.id, p_forcar: !!forcar });
+    if (!error) { setEtapa('nada'); onFeito(); return; }
+    const m = error.message || '';
+    if (/CONFLITO/.test(m)) { setMsg(m.replace(/^CONFLITO:\s*/, '') + ' Se desfizer mesmo assim, esses campos voltam ao valor antigo e a mudança mais nova se perde.'); setEtapa('conflito'); return; }
+    if (/function .*desfazer_atividade|Could not find the function|schema cache/i.test(m)) setMsg('Falta rodar o arquivo 10_desfazer_atividades.sql no Supabase.');
+    else setMsg(m.replace(/^(SUMIU|SEM_COPIA):\s*/, ''));
+    setEtapa('erro');
+  };
+  const rotulo = grupo > 1 ? `Desfazer (${grupo} itens)` : 'Desfazer';
+  if (etapa === 'confirmar') {
+    return (
+      <span className="log-confirma">
+        <span>{grupo > 1 ? `Desfaz ${grupo} itens feitos juntos.` : 'Desfazer isto?'}</span>
+        <button type="button" className="pill lime" onClick={() => rodar(false)}>Sim, desfazer</button>
+        <button type="button" className="link-btn" onClick={() => setEtapa('nada')}>Cancelar</button>
+      </span>
+    );
+  }
+  if (etapa === 'conflito') {
+    return (
+      <span className="log-confirma">
+        <span className="log-erro">{msg}</span>
+        <button type="button" className="pill danger" onClick={() => rodar(true)}>Desfazer mesmo assim</button>
+        <button type="button" className="link-btn" onClick={() => setEtapa('nada')}>Cancelar</button>
+      </span>
+    );
+  }
+  return (
+    <>
+      <button type="button" className="log-desfazer" disabled={etapa === 'enviando'} onClick={() => setEtapa('confirmar')}>
+        {etapa === 'enviando' ? 'Desfazendo…' : '↶ ' + rotulo}
+      </button>
+      {etapa === 'erro' && <span className="log-erro">{msg}</span>}
+    </>
   );
 }
