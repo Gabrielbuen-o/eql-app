@@ -14,10 +14,11 @@ const TIPOS = [
 
 const CAMPOS = {
   nome: 'Nome', percentual: 'Andamento', fase: 'Fase', entrega: 'Entrega', inicio: 'Início', pagamento: 'Pagamento',
-  descricao: 'Descrição', grupo: 'Cliente/grupo', empresa: 'Empresa', qtd_total: 'Quantidade', qtd_produzida: 'Produzido',
+  descricao: 'Descrição', grupo: 'Cliente/grupo', empresa: 'Empresa', qtd_total: 'Quantidade', qtd_produzida: 'Em estoque',
   unidade: 'Unidade', arquivada: 'Arquivada', dia: 'Dia', demanda_id: 'Demanda', tipo: 'Tipo', ativo: 'Ativo',
   papel: 'Acesso', foto_url: 'Foto', cliente_grupo: 'Grupo do cliente', funcao: 'Função', placa: 'Placa',
   proxima_manutencao: 'Próxima manutenção', observacoes: 'Observações', email: 'E-mail',
+  produto: 'Produto', especificacao: 'Especificação',
 };
 const OCULTAR = new Set(['ordem']);
 const EMPRESAS = { engenharia: 'Engenharia', impermeabilizacao: 'Impermeabilização', eko: 'Eko' };

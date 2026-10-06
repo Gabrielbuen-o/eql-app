@@ -47,6 +47,7 @@ Se o app abrir com a mensagem “Falta ligar o banco de dados”, as variáveis 
   - `03_folgas_e_frotas.sql`: folgas/férias, veículos e agenda dos veículos
   - `04_acessos_e_perfis.sql`: acessos (administrador, gerente, campo, cliente), fotos, último acesso e preferências
   - `05_registro_de_atividades.sql`: registro de tudo que cada usuário cria, altera ou apaga (só administradores veem)
+  - `06_fabrica_eko.sql`: demandas da fábrica com produto, especificação, cliente e fases Orçamento → Execução → Estoque
 
 ## Acessos
 | Tipo | Pode |

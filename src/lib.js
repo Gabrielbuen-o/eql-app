@@ -20,7 +20,21 @@ export const FASES = [
   { id: 'execucao', nome: 'Execução' },
   { id: 'entrega', nome: 'Entrega' },
 ];
-export const faseNome = Object.fromEntries(FASES.map((f) => [f.id, f.nome]));
+// Fábrica (EQL Eko): orçamento → execução → estoque
+export const FASES_EKO = [
+  { id: 'orcamento', nome: 'Orçamento' },
+  { id: 'execucao', nome: 'Execução' },
+  { id: 'estoque', nome: 'Estoque' },
+];
+export const fasesDe = (empresa) => (empresa === 'eko' ? FASES_EKO : FASES);
+export const faseNome = { ...Object.fromEntries(FASES.map((f) => [f.id, f.nome])), estoque: 'Estoque' };
+
+export const PRODUTOS_EKO = [
+  { id: 'Concreto ensacado', unidade: 'sacos', espec: '20 kg · 30 MPa' },
+  { id: 'Mourão', unidade: 'mourões', espec: '' },
+  { id: 'Placa', unidade: 'placas', espec: '' },
+  { id: 'Outro', unidade: 'un.', espec: '' },
+];
 
 export const PAGAMENTOS = [
   { id: 'a_faturar', nome: 'A faturar' },
@@ -69,7 +83,7 @@ export function percentual(d) {
 
 export function situacao(d, dia = hoje()) {
   if (!d.entrega) return 'sem';
-  if (percentual(d) >= 100) return 'ok';
+  if (percentual(d) >= 100 || d.fase === 'estoque') return 'ok';
   const dd = diffDias(d.entrega, dia);
   if (dd < 0) return 'atrasada';
   if (dd <= 3) return 'urgente';
@@ -92,12 +106,14 @@ export function rotuloPrazo(d, dia = hoje()) {
 export function resumoProducao(d, dia = hoje()) {
   const falta = Math.max(0, d.qtd_total - (d.qtd_produzida || 0));
   const un = d.unidade || 'un.';
-  const base = `${(d.qtd_produzida || 0).toLocaleString('pt-BR')} de ${d.qtd_total.toLocaleString('pt-BR')} ${un}`;
-  if (falta === 0) return `${base} · concluído`;
-  if (!d.entrega) return `${base} · sem prazo`;
+  const n = (x) => x.toLocaleString('pt-BR');
+  const base = `${n(d.qtd_produzida || 0)} de ${n(d.qtd_total)} ${un} em estoque`;
+  if (falta === 0) return `${base} · pedido completo`;
+  if (d.fase === 'orcamento') return `${n(d.qtd_total)} ${un} · em orçamento`;
+  if (!d.entrega) return `${base} · faltam ${n(falta)}`;
   const dias = d.entrega >= dia ? diasUteis(dia, d.entrega) : 0;
-  if (dias === 0) return `${base} · prazo vencido, faltam ${falta.toLocaleString('pt-BR')}`;
-  return `${base} · ${Math.ceil(falta / dias).toLocaleString('pt-BR')}/dia até ${fmt(d.entrega)}`;
+  if (dias === 0) return `${base} · prazo vencido, faltam ${n(falta)}`;
+  return `${base} · produzir ${n(Math.ceil(falta / dias))}/dia até ${fmt(d.entrega)}`;
 }
 
 export const iniciais = (nome) =>

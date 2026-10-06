@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { EMPRESAS, faseNome, fmt, hoje, ehProducao, ordemGrupo, percentual, resumoProducao, rotuloPrazo, situacao } from './lib.js';
+import { EMPRESAS, PRODUTOS_EKO, faseNome, fmt, hoje, ehProducao, ordemGrupo, percentual, resumoProducao, rotuloPrazo, situacao } from './lib.js';
 import { DemandaModal } from './DemandaModal.jsx';
 import { Agenda } from './Agenda.jsx';
 
@@ -31,11 +31,17 @@ export function Demandas({ dados, tv, setTv, avisar, pode }) {
   const colunas = EMPRESAS.filter((e) => filtro === 'todas' || e.id === filtro).map((e) => {
     const itens = filtradas.filter((d) => d.empresa === e.id);
     const porGrupo = {};
-    itens.forEach((d) => (porGrupo[d.grupo || 'Outros'] ||= []).push(d));
-    const gs = Object.keys(porGrupo).sort(ordemGrupo).map((nome) => ({
-      nome,
-      itens: porGrupo[nome].sort((a, b) => (a.entrega || '9999').localeCompare(b.entrega || '9999')),
-    }));
+    // fábrica agrupa por produto; obras agrupam por cliente/grupo
+    const chave = (d) => (e.id === 'eko' ? d.produto || 'Outros' : d.grupo || 'Outros');
+    itens.forEach((d) => (porGrupo[chave(d)] ||= []).push(d));
+    const ordemFase = { execucao: 0, orcamento: 1, estoque: 2 };
+    const ordenar = e.id === 'eko'
+      ? (a, b) => (ordemFase[a.fase] ?? 0) - (ordemFase[b.fase] ?? 0) || (a.entrega || '9999').localeCompare(b.entrega || '9999')
+      : (a, b) => (a.entrega || '9999').localeCompare(b.entrega || '9999');
+    const ordemChaves = e.id === 'eko'
+      ? (a, b) => PRODUTOS_EKO.findIndex((p) => p.id === a) - PRODUTOS_EKO.findIndex((p) => p.id === b)
+      : ordemGrupo;
+    const gs = Object.keys(porGrupo).sort(ordemChaves).map((nome) => ({ nome, itens: porGrupo[nome].sort(ordenar) }));
     return { ...e, total: itens.length, grupos: gs };
   });
 
@@ -123,6 +129,7 @@ function CartaoDemanda({ d, dia, onAbrir }) {
   const sit = situacao(d, dia);
   const pct = percentual(d);
   const prazo = rotuloPrazo(d, dia);
+  if (d.empresa === 'eko') return <CartaoFabrica d={d} dia={dia} onAbrir={onAbrir} />;
   const meta = ehProducao(d)
     ? resumoProducao(d, dia)
     : [faseNome[d.fase], d.descricao, d.inicio && d.inicio > dia ? 'começa ' + fmt(d.inicio) : null].filter(Boolean).join(' · ');
@@ -157,5 +164,33 @@ function Arquivadas({ demandas, onAbrir }) {
         </div>
       )}
     </section>
+  );
+}
+
+// Cartão da fábrica: cliente, produto, fase e quanto do pedido já está em estoque
+function CartaoFabrica({ d, dia, onAbrir }) {
+  const pct = percentual(d);
+  const emEstoque = d.fase === 'estoque' || pct >= 100;
+  const sit = emEstoque ? 'ok' : situacao(d, dia);
+  const prazo = emEstoque ? 'Em estoque' : rotuloPrazo(d, dia);
+  // o produto já aparece no título do grupo; aqui vai a especificação
+  const produto = d.especificacao || d.descricao || d.produto;
+  return (
+    <button type="button" className={'item sit-' + sit + (onAbrir ? '' : ' so-ver')} onClick={onAbrir || undefined}
+      aria-label={`${d.nome}, ${produto}, ${prazo}, ${pct}% em estoque`}>
+      <span className="item-top">
+        <span className="item-name">{d.nome}</span>
+        <span className={'due ' + sit}>{prazo}</span>
+      </span>
+      <span className="item-top" style={{ alignItems: 'center' }}>
+        <span className="item-sub">{produto || 'Sem especificação'}</span>
+        <span className="tag-fase">{faseNome[d.fase] || d.fase}</span>
+      </span>
+      <span className="item-meta">{d.qtd_total ? resumoProducao(d, dia) : 'Quantidade a definir'}</span>
+      <span className="prog">
+        <span className="bar"><span style={{ width: pct + '%' }} /></span>
+        <span className="pct">{pct}%</span>
+      </span>
+    </button>
   );
 }

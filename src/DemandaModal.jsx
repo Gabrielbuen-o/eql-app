@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { EMPRESAS, FASES, PAGAMENTOS, empresaPorId, resumoProducao, tempoRelativo } from './lib.js';
+import { EMPRESAS, PAGAMENTOS, PRODUTOS_EKO, empresaPorId, fasesDe, resumoProducao, tempoRelativo } from './lib.js';
 
 const VAZIA = {
   empresa: 'engenharia', grupo: '', nome: '', descricao: '', fase: 'orcamento', percentual: 0,
   inicio: '', entrega: '', pagamento: 'a_faturar', qtd_total: '', qtd_produzida: 0, unidade: '', arquivada: false,
+  produto: '', especificacao: '',
 };
 
 export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, limitado = false, perfis = [] }) {
@@ -13,6 +14,16 @@ export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, l
   const [confirmar, setConfirmar] = useState(false);
   const set = (campo) => (v) => setD((x) => ({ ...x, [campo]: v }));
   const producao = d.empresa === 'eko';
+  const fases = fasesDe(d.empresa);
+  const mudarEmpresa = (empresa) => setD((x) => {
+    const ok = fasesDe(empresa).some((f) => f.id === x.fase);
+    return { ...x, empresa, fase: ok ? x.fase : x.fase === 'estoque' ? 'entrega' : 'orcamento' };
+  });
+  const mudarProduto = (produto) => setD((x) => {
+    const p = PRODUTOS_EKO.find((i) => i.id === produto);
+    return { ...x, produto, unidade: p?.unidade || x.unidade, especificacao: x.especificacao || p?.espec || '' };
+  });
+  const podeSalvar = producao ? !!d.produto : !!d.nome.trim();
   const total = Number(d.qtd_total) || 0;
 
   useEffect(() => {
@@ -22,12 +33,15 @@ export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, l
   }, [onFechar]);
 
   const salvar = async (extra = {}) => {
-    if (!d.nome.trim()) return;
+    if (!podeSalvar) return;
     setSalvando(true);
+    const cliente = d.grupo.trim();
     const dados = {
       ...d, ...extra,
-      nome: d.nome.trim(),
-      grupo: d.grupo.trim() || (producao ? 'Produção' : d.empresa === 'engenharia' ? 'Obras civis' : 'Obras'),
+      nome: producao ? cliente || 'Estoque' : d.nome.trim(),
+      grupo: producao ? cliente || 'Estoque' : cliente || (d.empresa === 'engenharia' ? 'Obras civis' : 'Obras'),
+      produto: producao ? d.produto || null : null,
+      especificacao: producao ? d.especificacao?.trim() || null : null,
       inicio: d.inicio || null,
       entrega: d.entrega || null,
       percentual: Math.max(0, Math.min(100, Number(d.percentual) || 0)),
@@ -36,6 +50,8 @@ export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, l
       unidade: producao ? d.unidade || null : null,
     };
     if (dados.qtd_total) dados.percentual = Math.min(100, Math.round((dados.qtd_produzida / dados.qtd_total) * 100));
+    // pedido todo pronto: vai para a fase Estoque sozinho
+    if (producao && dados.qtd_total && dados.qtd_produzida >= dados.qtd_total && dados.fase === 'execucao') dados.fase = 'estoque';
     const ok = await onSalvar(dados);
     setSalvando(false);
     if (ok !== false) onFechar();
@@ -53,7 +69,7 @@ export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, l
         <div className="modal-head">
           <div>
             <span className="modal-kicker">{novo ? 'Nova demanda' : empresaPorId[d.empresa]?.nome}</span>
-            <h2>{d.nome || 'Sem nome'}</h2>
+            <h2>{producao ? [d.produto || 'Novo pedido', d.grupo].filter(Boolean).join(' · ') : d.nome || 'Sem nome'}</h2>
             {!novo && inicial.atualizado_em && (
               <span className="modal-kicker" style={{ fontWeight: 500 }}>
                 Atualizada {tempoRelativo(inicial.atualizado_em)}{autor ? ' por ' + autor : ''}
@@ -63,27 +79,50 @@ export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, l
           <button type="button" className="icon-btn" aria-label="Fechar" onClick={onFechar}>×</button>
         </div>
 
-        <div className="grid2">
-          <label className="field"><span>Nome</span>
-            <input autoFocus={novo} disabled={L} value={d.nome} onChange={(e) => set('nome')(e.target.value)} placeholder="Ex.: Obra Riviera, SPO765" required />
-          </label>
-          <label className="field"><span>Empresa</span>
-            <select disabled={L} value={d.empresa} onChange={(e) => set('empresa')(e.target.value)}>
-              {EMPRESAS.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
-            </select>
-          </label>
-          <label className="field"><span>Cliente / grupo</span>
-            <input disabled={L} list="grupos-lista" value={d.grupo} onChange={(e) => set('grupo')(e.target.value)} placeholder="Ex.: Obras civis, Help, Agplan" />
-            <datalist id="grupos-lista">{empresaGrupos.map((g) => <option key={g} value={g} />)}</datalist>
-          </label>
-          <label className="field"><span>Descrição</span>
-            <input disabled={L} value={d.descricao || ''} onChange={(e) => set('descricao')(e.target.value)} placeholder="Ex.: Obra, Telecom, 30 kg · 30 MPa" />
-          </label>
-        </div>
+        {producao ? (
+          <div className="grid2">
+            <label className="field"><span>Cliente</span>
+              <input autoFocus={novo} disabled={L} list="grupos-lista" value={d.grupo} onChange={(e) => set('grupo')(e.target.value)} placeholder="Ex.: Construtora X (vazio = para estoque)" />
+              <datalist id="grupos-lista">{empresaGrupos.filter((g) => g !== 'Estoque').map((g) => <option key={g} value={g} />)}</datalist>
+            </label>
+            <label className="field"><span>Empresa</span>
+              <select disabled={L} value={d.empresa} onChange={(e) => mudarEmpresa(e.target.value)}>
+                {EMPRESAS.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+              </select>
+            </label>
+            <label className="field"><span>Produto</span>
+              <select disabled={L} value={d.produto || ''} onChange={(e) => mudarProduto(e.target.value)} required>
+                <option value="">Escolha…</option>
+                {PRODUTOS_EKO.map((p) => <option key={p.id} value={p.id}>{p.id}</option>)}
+              </select>
+            </label>
+            <label className="field"><span>Especificação</span>
+              <input disabled={L} value={d.especificacao || ''} onChange={(e) => set('especificacao')(e.target.value)} placeholder="Ex.: 20 kg · 30 MPa, 2,20 m" />
+            </label>
+          </div>
+        ) : (
+          <div className="grid2">
+            <label className="field"><span>Nome</span>
+              <input autoFocus={novo} disabled={L} value={d.nome} onChange={(e) => set('nome')(e.target.value)} placeholder="Ex.: Obra Riviera, SPO765" required />
+            </label>
+            <label className="field"><span>Empresa</span>
+              <select disabled={L} value={d.empresa} onChange={(e) => mudarEmpresa(e.target.value)}>
+                {EMPRESAS.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+              </select>
+            </label>
+            <label className="field"><span>Cliente / grupo</span>
+              <input disabled={L} list="grupos-lista" value={d.grupo} onChange={(e) => set('grupo')(e.target.value)} placeholder="Ex.: Obras civis, Help, Agplan" />
+              <datalist id="grupos-lista">{empresaGrupos.map((g) => <option key={g} value={g} />)}</datalist>
+            </label>
+            <label className="field"><span>Descrição</span>
+              <input disabled={L} value={d.descricao || ''} onChange={(e) => set('descricao')(e.target.value)} placeholder="Ex.: Obra, Telecom, 30 kg · 30 MPa" />
+            </label>
+          </div>
+        )}
 
         <div className="field"><span>Fase</span>
-          <div className="seg">
-            {FASES.map((f) => (
+          <div className={'seg' + (fases.length === 3 ? ' three' : '')}>
+            {fases.map((f) => (
               <button type="button" key={f.id} className={d.fase === f.id ? 'on' : ''} aria-pressed={d.fase === f.id}
                 onClick={() => set('fase')(f.id)}>{f.nome}</button>
             ))}
@@ -93,25 +132,37 @@ export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, l
         {producao ? (
           <div className="prod-box">
             <div className="grid2">
-              <label className="field"><span>Produzir (quantidade)</span>
+              <label className="field"><span>Quantidade do pedido</span>
                 <input type="number" min="0" inputMode="numeric" disabled={L} value={d.qtd_total} onChange={(e) => set('qtd_total')(e.target.value)} placeholder="1000" />
               </label>
               <label className="field"><span>Unidade</span>
                 <input disabled={L} value={d.unidade || ''} onChange={(e) => set('unidade')(e.target.value)} placeholder="sacos, placas, mourões" />
               </label>
-              <label className="field"><span>Já produzido</span>
+              <label className="field"><span>Pronto em estoque</span>
                 <input type="number" min="0" inputMode="numeric" value={d.qtd_produzida} onChange={(e) => set('qtd_produzida')(e.target.value)} />
               </label>
-              <label className="field"><span>Produzir até</span>
+              <label className="field"><span>Prazo</span>
                 <input type="date" disabled={L} value={d.entrega} onChange={(e) => set('entrega')(e.target.value)} />
               </label>
             </div>
-            <div className="quick" aria-label="Somar produção do dia">
+            <div className="quick" aria-label="Somar produção do dia ao estoque">
+              <span className="prod-sum" style={{ alignSelf: 'center', marginRight: 4 }}>Produção do dia:</span>
               {[10, 50, 100, 250].map((n) => <button type="button" key={n} onClick={() => somar(n)}>+{n}</button>)}
             </div>
-            {total > 0 && (
-              <div className="prod-sum">{resumoProducao({ ...d, qtd_total: total, qtd_produzida: Number(d.qtd_produzida) || 0, entrega: d.entrega || null })}</div>
-            )}
+            {total > 0 && (() => {
+              const pronto = Math.min(total, Number(d.qtd_produzida) || 0);
+              const pct = Math.round((pronto / total) * 100);
+              return (
+                <>
+                  <div className="stock-bar" aria-hidden="true"><span style={{ width: pct + '%' }} /></div>
+                  <div className="stock-legend">
+                    <span><i className="sq em" />Em estoque: <b>{pronto.toLocaleString('pt-BR')}</b> ({pct}%)</span>
+                    <span><i className="sq falta" />A produzir: <b>{(total - pronto).toLocaleString('pt-BR')}</b> ({100 - pct}%)</span>
+                  </div>
+                  <div className="prod-sum">{resumoProducao({ ...d, qtd_total: total, qtd_produzida: pronto, entrega: d.entrega || null })}</div>
+                </>
+              );
+            })()}
           </div>
         ) : (
           <>
@@ -156,7 +207,7 @@ export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, l
           </div>
           <div className="row">
             <button type="button" className="pill ghost" onClick={onFechar}>Cancelar</button>
-            <button type="submit" className="pill lime" disabled={salvando || !d.nome.trim()}>{salvando ? 'Salvando…' : 'Salvar'}</button>
+            <button type="submit" className="pill lime" disabled={salvando || !podeSalvar}>{salvando ? 'Salvando…' : 'Salvar'}</button>
           </div>
         </div>
       </form>

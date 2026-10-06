@@ -429,3 +429,14 @@ table.cal { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 .log-changes { margin: 4px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--text-2); display: flex; flex-direction: column; gap: 2px; }
 .log-changes span { color: var(--muted); }
 .log-time { font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ---------- Fábrica: estoque x a produzir ---------- */
+.stock-bar { height: 10px; border-radius: 999px; background: var(--card); overflow: hidden; }
+.stock-bar > span { display: block; height: 100%; background: var(--brand); border-radius: 999px; }
+.stock-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--text-2); }
+.stock-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.stock-legend .sq { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.stock-legend .sq.em { background: var(--brand); }
+.stock-legend .sq.falta { background: var(--card); border: 1.5px solid var(--line-strong); }
+.item-sub { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.tag-fase { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--brand-soft); color: var(--brand-text); }

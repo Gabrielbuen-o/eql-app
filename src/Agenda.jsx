@@ -286,7 +286,7 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true }) {
                   <tr key={d.id}>
                     <th scope="row" className="rowhead">
                       <div className="n">{['atrasada', 'urgente', 'semana'].includes(sit) && <span className={'alert ' + sit} />}{d.nome}</div>
-                      <div className="s">{d.grupo}{d.entrega ? ' · até ' + fmt(d.entrega) : ''}</div>
+                      <div className="s">{d.empresa === 'eko' ? d.produto || '' : d.grupo}{d.entrega ? ' · até ' + fmt(d.entrega) : ''}</div>
                     </th>
                     {dias.map((dia) => {
                       const chave = d.id + '|' + dia;
