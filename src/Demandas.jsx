@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { EMPRESAS, faseNome, fmt, hoje, ehProducao, ordemGrupo, percentual, resumoProducao, situacao } from './lib.js';
+import { EMPRESAS, faseNome, fmt, hoje, ehProducao, ordemGrupo, percentual, resumoProducao, rotuloPrazo, situacao } from './lib.js';
 import { DemandaModal } from './DemandaModal.jsx';
 import { Agenda } from './Agenda.jsx';
 
@@ -11,7 +11,8 @@ export function Demandas({ dados, tv, setTv, avisar }) {
 
   const abertas = dados.demandas.filter((d) => !d.arquivada);
   const visiveis = abertas.filter((d) => filtro === 'todas' || d.empresa === filtro);
-  const filtradas = destaque ? visiveis.filter((d) => situacao(d, dia) === destaque) : visiveis;
+  const casa = (d, f) => { const s = situacao(d, dia); return f === 'semana' ? s === 'semana' || s === 'urgente' : s === f; };
+  const filtradas = destaque ? visiveis.filter((d) => casa(d, destaque)) : visiveis;
 
   const grupos = useMemo(() => {
     const g = {};
@@ -19,11 +20,11 @@ export function Demandas({ dados, tv, setTv, avisar }) {
     return Object.fromEntries(Object.entries(g).map(([k, v]) => [k, [...v].sort(ordemGrupo)]));
   }, [dados.demandas]);
 
-  const conta = (s) => visiveis.filter((d) => situacao(d, dia) === s).length;
+  const conta = (s) => visiveis.filter((d) => casa(d, s)).length;
   const stats = [
     { id: null, rotulo: 'Demandas ativas', valor: visiveis.length, dica: 'em andamento', cor: 'var(--lav)' },
-    { id: 'semana', rotulo: 'Vencem em 7 dias', valor: conta('semana'), dica: 'clique para filtrar', cor: 'var(--blue)' },
-    { id: 'atrasada', rotulo: 'Atrasadas', valor: conta('atrasada'), dica: 'clique para filtrar', cor: 'var(--peach)' },
+    { id: 'semana', rotulo: 'Entregar em até 7 dias', valor: conta('semana'), dica: 'clique para filtrar', cor: 'var(--yellow)' },
+    { id: 'atrasada', rotulo: 'Atrasadas', valor: conta('atrasada'), dica: 'clique para filtrar', cor: 'var(--red-soft)' },
     { id: 'sem', rotulo: 'Sem prazo definido', valor: conta('sem'), dica: 'clique para filtrar', cor: 'var(--mint)' },
   ];
 
@@ -104,7 +105,7 @@ export function Demandas({ dados, tv, setTv, avisar }) {
       </div>
 
       {!tv && (
-        <Agenda demandas={visiveis} funcionarios={dados.funcionarios} alocacoes={dados.alocacoes} acoes={dados} avisar={avisar} />
+        <Agenda demandas={visiveis} dados={dados} avisar={avisar} />
       )}
 
       {!tv && <Arquivadas demandas={dados.demandas.filter((d) => d.arquivada)} onAbrir={setEditando} />}
@@ -120,12 +121,12 @@ export function Demandas({ dados, tv, setTv, avisar }) {
 function CartaoDemanda({ d, dia, onAbrir }) {
   const sit = situacao(d, dia);
   const pct = percentual(d);
-  const prazo = !d.entrega ? 'sem prazo' : sit === 'atrasada' ? 'Atrasada · ' + fmt(d.entrega) : fmt(d.entrega);
+  const prazo = rotuloPrazo(d, dia);
   const meta = ehProducao(d)
     ? resumoProducao(d, dia)
     : [faseNome[d.fase], d.descricao, d.inicio && d.inicio > dia ? 'começa ' + fmt(d.inicio) : null].filter(Boolean).join(' · ');
   return (
-    <button type="button" className="item" onClick={onAbrir} aria-label={`${d.nome}, ${prazo}, ${pct}%`}>
+    <button type="button" className={'item sit-' + sit} onClick={onAbrir} aria-label={`${d.nome}, ${prazo}, ${pct}%`}>
       <span className="item-top">
         <span className="item-name">{d.nome}</span>
         <span className={'due ' + sit}>{prazo}</span>

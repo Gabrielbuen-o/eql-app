@@ -1,124 +1,153 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from './lib.js';
 
-const ORDEM = {
-  demandas: ['criado_em', true],
-  funcionarios: ['ordem', true],
-  alocacoes: ['dia', true],
+// tabela -> [coluna de ordenação, ascendente, filtra por dia recente?]
+const TABELAS = {
+  demandas: ['criado_em', true, false],
+  funcionarios: ['ordem', true, false],
+  alocacoes: ['dia', true, true],
+  ausencias: ['dia', true, true],
+  veiculos: ['ordem', true, false],
+  veiculo_alocacoes: ['dia', true, true],
 };
+const NOMES = Object.keys(TABELAS);
 
-// Carrega as três tabelas, escuta mudanças em tempo real e expõe as ações.
+// Carrega as tabelas, escuta mudanças em tempo real e expõe as ações.
 export function useData(avisar) {
-  const [demandas, setDemandas] = useState([]);
-  const [funcionarios, setFuncionarios] = useState([]);
-  const [alocacoes, setAlocacoes] = useState([]);
+  const [db, setDb] = useState(() => Object.fromEntries(NOMES.map((t) => [t, []])));
   const [carregando, setCarregando] = useState(true);
-  const setters = { demandas: setDemandas, funcionarios: setFuncionarios, alocacoes: setAlocacoes };
   const avisarRef = useRef(avisar);
   avisarRef.current = avisar;
+  const dbRef = useRef(db);
+  dbRef.current = db;
 
-  const recarregar = useCallback(async (tabela) => {
-    const [col, asc] = ORDEM[tabela];
-    let q = supabase.from(tabela).select('*').order(col, { ascending: asc });
-    if (tabela === 'alocacoes') q = q.gte('dia', limiteAlocacoes());
+  const setTabela = (t, fn) => setDb((d) => ({ ...d, [t]: typeof fn === 'function' ? fn(d[t]) : fn }));
+
+  const recarregar = useCallback(async (t) => {
+    const [col, asc, recente] = TABELAS[t];
+    let q = supabase.from(t).select('*').order(col, { ascending: asc });
+    if (recente) q = q.gte('dia', limiteDias());
     const { data, error } = await q;
-    if (error) { avisarRef.current?.('Erro ao carregar: ' + error.message); return; }
-    setters[tabela](data || []);
+    if (error) {
+      const faltaTabela = /does not exist|schema cache|Could not find/i.test(error.message);
+      avisarRef.current?.(faltaTabela
+        ? 'Falta atualizar o banco: rode o arquivo 03_folgas_e_frotas.sql no Supabase.'
+        : 'Erro ao carregar: ' + error.message);
+      return;
+    }
+    setTabela(t, data || []);
   }, []);
 
   useEffect(() => {
     let vivo = true;
-    Promise.all(['demandas', 'funcionarios', 'alocacoes'].map(recarregar)).then(() => vivo && setCarregando(false));
+    Promise.all(NOMES.map(recarregar)).then(() => vivo && setCarregando(false));
     const canal = supabase.channel('eql-tempo-real');
-    ['demandas', 'funcionarios', 'alocacoes'].forEach((t) =>
-      canal.on('postgres_changes', { event: '*', schema: 'public', table: t }, () => recarregar(t)));
+    NOMES.forEach((t) => canal.on('postgres_changes', { event: '*', schema: 'public', table: t }, () => recarregar(t)));
     canal.subscribe();
-    // rede de segurança: recarrega quando a aba volta a ficar visível
-    const vis = () => document.visibilityState === 'visible' && ['demandas', 'funcionarios', 'alocacoes'].forEach(recarregar);
+    const vis = () => document.visibilityState === 'visible' && NOMES.forEach(recarregar);
     document.addEventListener('visibilitychange', vis);
     return () => { vivo = false; supabase.removeChannel(canal); document.removeEventListener('visibilitychange', vis); };
   }, [recarregar]);
 
-  const falhou = (error, tabela) => {
+  const falhou = (error, t) => {
     if (!error) return false;
     avisarRef.current?.('Não foi possível salvar: ' + error.message);
-    recarregar(tabela);
+    recarregar(t);
     return true;
+  };
+  const tmp = () => 'tmp-' + Math.random().toString(36).slice(2);
+
+  // ---------- genéricos ----------
+  const inserir = async (t, linhas, otimista = true) => {
+    const lista = Array.isArray(linhas) ? linhas : [linhas];
+    if (!lista.length) return true;
+    if (otimista) setTabela(t, (xs) => [...xs, ...lista.map((l) => ({ id: tmp(), ...l }))]);
+    const { error } = await supabase.from(t).insert(lista);
+    if (!falhou(error, t)) recarregar(t);
+    return !error;
+  };
+  const atualizar = async (t, id, campos) => {
+    setTabela(t, (xs) => xs.map((x) => (x.id === id ? { ...x, ...campos } : x)));
+    if (String(id).startsWith('tmp-')) return true;
+    const { error } = await supabase.from(t).update(campos).eq('id', id);
+    falhou(error, t);
+    return !error;
+  };
+  const apagar = async (t, id) => {
+    setTabela(t, (xs) => xs.filter((x) => x.id !== id));
+    if (String(id).startsWith('tmp-')) return;
+    const { error } = await supabase.from(t).delete().eq('id', id);
+    falhou(error, t);
   };
 
   // ---------- Demandas ----------
   const salvarDemanda = async (d) => {
     const { id, criado_em, atualizado_em, ...campos } = d;
-    if (id) {
-      setDemandas((xs) => xs.map((x) => (x.id === id ? { ...x, ...campos } : x)));
-      const { error } = await supabase.from('demandas').update(campos).eq('id', id);
-      if (!falhou(error, 'demandas')) recarregar('demandas');
-      return !error;
-    }
-    const { error } = await supabase.from('demandas').insert(campos);
-    if (!falhou(error, 'demandas')) recarregar('demandas');
-    return !error;
+    if (id) { const ok = await atualizar('demandas', id, campos); recarregar('demandas'); return ok; }
+    return inserir('demandas', campos, false);
   };
   const excluirDemanda = async (id) => {
-    setDemandas((xs) => xs.filter((x) => x.id !== id));
-    setAlocacoes((xs) => xs.filter((x) => x.demanda_id !== id));
-    const { error } = await supabase.from('demandas').delete().eq('id', id);
-    falhou(error, 'demandas');
+    setTabela('alocacoes', (xs) => xs.filter((x) => x.demanda_id !== id));
+    setTabela('veiculo_alocacoes', (xs) => xs.filter((x) => x.demanda_id !== id));
+    await apagar('demandas', id);
   };
 
-  // ---------- Funcionários ----------
-  const adicionarFuncionario = async (nome, funcao) => {
-    const ordem = Math.max(0, ...funcionarios.map((f) => f.ordem || 0)) + 1;
-    const { error } = await supabase.from('funcionarios').insert({ nome, funcao: funcao || null, ordem });
-    if (!falhou(error, 'funcionarios')) recarregar('funcionarios');
-  };
-  const atualizarFuncionario = async (id, campos) => {
-    setFuncionarios((xs) => xs.map((x) => (x.id === id ? { ...x, ...campos } : x)));
-    const { error } = await supabase.from('funcionarios').update(campos).eq('id', id);
-    falhou(error, 'funcionarios');
+  // ---------- Funcionários e veículos ----------
+  const proximaOrdem = (t) => Math.max(0, ...dbRef.current[t].map((f) => f.ordem || 0)) + 1;
+  const adicionarFuncionario = (nome, funcao) =>
+    inserir('funcionarios', { nome, funcao: funcao || null, ordem: proximaOrdem('funcionarios'), ativo: true }, false);
+  const atualizarFuncionario = (id, campos) => atualizar('funcionarios', id, campos);
+  const salvarVeiculo = async (v) => {
+    const { id, criado_em, ...campos } = v;
+    if (id) return atualizar('veiculos', id, campos);
+    return inserir('veiculos', { ...campos, ordem: proximaOrdem('veiculos'), ativo: true }, false);
   };
 
-  // ---------- Alocações ----------
-  const alocar = async (funcionario_id, demanda_id, dia) => {
-    if (alocacoes.some((a) => a.funcionario_id === funcionario_id && a.demanda_id === demanda_id && a.dia === dia)) return;
-    const temp = { id: 'tmp-' + Math.random(), funcionario_id, demanda_id, dia };
-    setAlocacoes((xs) => [...xs, temp]);
-    const { error } = await supabase.from('alocacoes').insert({ funcionario_id, demanda_id, dia });
-    if (!falhou(error, 'alocacoes')) recarregar('alocacoes');
+  // ---------- Agenda ----------
+  // recurso: { tipo: 'func' | 'veic', id }
+  const tabAloc = (tipo) => (tipo === 'veic' ? 'veiculo_alocacoes' : 'alocacoes');
+  const colRec = (tipo) => (tipo === 'veic' ? 'veiculo_id' : 'funcionario_id');
+
+  const alocar = async (tipo, recursoId, demanda_id, dia) => {
+    const t = tabAloc(tipo), c = colRec(tipo);
+    if (dbRef.current[t].some((a) => a[c] === recursoId && a.demanda_id === demanda_id && a.dia === dia)) return;
+    return inserir(t, { [c]: recursoId, demanda_id, dia });
   };
-  const moverAlocacao = async (id, demanda_id, dia) => {
-    const a = alocacoes.find((x) => x.id === id);
+  const moverAlocacao = async (tipo, id, demanda_id, dia) => {
+    const t = tabAloc(tipo), c = colRec(tipo);
+    const a = dbRef.current[t].find((x) => x.id === id);
     if (!a || (a.demanda_id === demanda_id && a.dia === dia)) return;
-    if (alocacoes.some((x) => x.funcionario_id === a.funcionario_id && x.demanda_id === demanda_id && x.dia === dia)) {
-      return removerAlocacao(id);
-    }
-    setAlocacoes((xs) => xs.map((x) => (x.id === id ? { ...x, demanda_id, dia } : x)));
-    const { error } = await supabase.from('alocacoes').update({ demanda_id, dia }).eq('id', id);
-    falhou(error, 'alocacoes');
+    if (dbRef.current[t].some((x) => x[c] === a[c] && x.demanda_id === demanda_id && x.dia === dia)) return apagar(t, id);
+    return atualizar(t, id, { demanda_id, dia });
   };
-  const removerAlocacao = async (id) => {
-    setAlocacoes((xs) => xs.filter((x) => x.id !== id));
-    if (String(id).startsWith('tmp-')) return;
-    const { error } = await supabase.from('alocacoes').delete().eq('id', id);
-    falhou(error, 'alocacoes');
+  const removerAlocacao = (tipo, id) => apagar(tabAloc(tipo), id);
+  const inserirAlocacoes = (tipo, linhas) => inserir(tabAloc(tipo), linhas, false);
+
+  // Folga / férias: um registro por funcionário por dia
+  const marcarAusencia = async (funcionario_id, dia, tipo) => {
+    const ex = dbRef.current.ausencias.find((a) => a.funcionario_id === funcionario_id && a.dia === dia);
+    if (ex) return ex.tipo === tipo ? true : atualizar('ausencias', ex.id, { tipo });
+    return inserir('ausencias', { funcionario_id, dia, tipo });
   };
-  const inserirAlocacoes = async (linhas) => {
-    if (!linhas.length) return 0;
-    const { error } = await supabase.from('alocacoes').insert(linhas);
-    if (!falhou(error, 'alocacoes')) recarregar('alocacoes');
-    return error ? 0 : linhas.length;
+  const marcarPeriodo = async (funcionario_id, de, ate, tipo, dias) => {
+    const existentes = dbRef.current.ausencias.filter((a) => a.funcionario_id === funcionario_id && a.dia >= de && a.dia <= ate);
+    const ja = new Set(existentes.map((a) => a.dia));
+    for (const a of existentes) if (a.tipo !== tipo) await atualizar('ausencias', a.id, { tipo });
+    return inserir('ausencias', dias.filter((d) => !ja.has(d)).map((dia) => ({ funcionario_id, dia, tipo })), false);
   };
+  const removerAusencia = (id) => apagar('ausencias', id);
 
   return {
-    demandas, funcionarios, alocacoes, carregando,
+    ...db, carregando,
     salvarDemanda, excluirDemanda,
-    adicionarFuncionario, atualizarFuncionario,
+    adicionarFuncionario, atualizarFuncionario, salvarVeiculo,
     alocar, moverAlocacao, removerAlocacao, inserirAlocacoes,
+    marcarAusencia, marcarPeriodo, removerAusencia,
   };
 }
 
 // Mantém na tela os últimos ~120 dias de agenda (o histórico completo fica no banco)
-function limiteAlocacoes() {
+function limiteDias() {
   const d = new Date();
   d.setDate(d.getDate() - 120);
   return d.toISOString().slice(0, 10);

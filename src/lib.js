@@ -72,8 +72,21 @@ export function situacao(d, dia = hoje()) {
   if (percentual(d) >= 100) return 'ok';
   const dd = diffDias(d.entrega, dia);
   if (dd < 0) return 'atrasada';
+  if (dd <= 3) return 'urgente';
   if (dd <= 7) return 'semana';
   return 'ok';
+}
+
+// Texto do selo de prazo: "Atrasada há 2 dias", "Entrega hoje", "Faltam 3 dias · 09/10"
+export function rotuloPrazo(d, dia = hoje()) {
+  if (!d.entrega) return 'sem prazo';
+  const sit = situacao(d, dia);
+  const dd = diffDias(d.entrega, dia);
+  if (sit === 'ok') return fmt(d.entrega);
+  if (dd < 0) return dd === -1 ? 'Atrasada há 1 dia' : `Atrasada há ${-dd} dias`;
+  if (dd === 0) return 'Entrega hoje';
+  if (dd === 1) return 'Entrega amanhã';
+  return `Faltam ${dd} dias · ${fmt(d.entrega)}`;
 }
 
 export function resumoProducao(d, dia = hoje()) {

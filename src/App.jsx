@@ -3,11 +3,13 @@ import { configurado, supabase, iniciais } from './lib.js';
 import { useData } from './useData.js';
 import { Demandas } from './Demandas.jsx';
 import { Equipe } from './Equipe.jsx';
+import { Frotas } from './Frotas.jsx';
 
 const ABAS = [
   { id: 'inicio', nome: 'Início', breve: 'Visão geral do grupo: faturamento, demandas críticas e indicadores das três empresas em uma tela.' },
   { id: 'demandas', nome: 'Demandas' },
   { id: 'equipes', nome: 'Equipes' },
+  { id: 'frotas', nome: 'Frotas' },
   { id: 'financeiro', nome: 'Financeiro', breve: 'Contas a pagar e a receber das três empresas, com resultado por obra e por empresa.' },
   { id: 'rh', nome: 'RH & Ponto', breve: 'Cadastro de funcionários, ponto diário e documentos.' },
   { id: 'relatorios', nome: 'Relatórios de obra', breve: 'Formulários por etapa com fotos, no padrão exigido pela Help e pela Agplan.' },
@@ -85,6 +87,8 @@ function Painel({ email }) {
             <Demandas dados={dados} tv={tv} setTv={setTv} avisar={avisar} />
           ) : aba === 'equipes' ? (
             <Equipe dados={dados} />
+          ) : aba === 'frotas' ? (
+            <Frotas dados={dados} />
           ) : (
             <>
               <header className="head"><h1>{atual.nome}</h1></header>

@@ -1,42 +1,56 @@
-import { useMemo, useRef, useState } from 'react';
-import { EMPRESAS, addDias, diaSemana, fmt, hoje, inicioSemana, ordemGrupo } from './lib.js';
+import { useMemo, useState } from 'react';
+import { EMPRESAS, addDias, diaSemana, fmt, hoje, inicioSemana, ordemGrupo, situacao } from './lib.js';
 
-// Agenda semanal: linhas = demandas, colunas = dias (seg–sáb).
-// Arraste um funcionário da paleta para uma célula; arraste um nome já alocado
-// para outra célula (mover) ou para a lixeira (remover).
+const FORA = [
+  { id: 'folga', nome: 'Folga' },
+  { id: 'ferias', nome: 'Férias' },
+];
+
+// Agenda semanal: linhas = "Fora" (folga/férias) + demandas; colunas = dias.
+// Arraste funcionários e veículos da paleta para as células; arraste um nome já
+// colocado para outra célula (mover) ou para a lixeira (remover).
 // No celular também dá para tocar no nome e depois tocar na célula.
-export function Agenda({ demandas, funcionarios, alocacoes, acoes, avisar }) {
+export function Agenda({ demandas, dados, avisar }) {
   const [semana, setSemana] = useState(() => inicioSemana(hoje()));
   const [mostrarDomingo, setMostrarDomingo] = useState(false);
-  const [selecionado, setSelecionado] = useState(null); // modo toque
-  const [arraste, setArraste] = useState(null); // { rotulo, x, y }
-  const [alvo, setAlvo] = useState(null); // célula sob o dedo/mouse
+  const [selecionado, setSelecionado] = useState(null); // { kind, id } — modo toque
+  const [arraste, setArraste] = useState(null);
+  const [alvo, setAlvo] = useState(null);
   const [lixeiraQuente, setLixeiraQuente] = useState(false);
-  const dragRef = useRef(null);
 
   const dia0 = hoje();
   const dias = useMemo(
     () => Array.from({ length: mostrarDomingo ? 7 : 6 }, (_, i) => addDias(semana, i)),
     [semana, mostrarDomingo]);
 
-  const ativos = funcionarios.filter((f) => f.ativo);
-  const nomeFunc = Object.fromEntries(funcionarios.map((f) => [f.id, f.nome]));
+  const funcs = dados.funcionarios.filter((f) => f.ativo);
+  const veics = dados.veiculos.filter((v) => v.ativo);
+  const nome = {
+    func: Object.fromEntries(dados.funcionarios.map((f) => [f.id, f.nome])),
+    veic: Object.fromEntries(dados.veiculos.map((v) => [v.id, v.nome])),
+  };
 
-  // índice: "demanda|dia" -> alocações
-  const porCelula = useMemo(() => {
-    const m = {};
-    alocacoes.forEach((a) => { (m[a.demanda_id + '|' + a.dia] ||= []).push(a); });
-    return m;
-  }, [alocacoes]);
-  // quantas obras cada funcionário tem em cada dia (para avisar conflito)
-  const porFuncDia = useMemo(() => {
-    const m = {};
-    alocacoes.forEach((a) => { const k = a.funcionario_id + '|' + a.dia; m[k] = (m[k] || 0) + 1; });
-    return m;
-  }, [alocacoes]);
-  const livres = (dia) => ativos.filter((f) => !porFuncDia[f.id + '|' + dia]);
+  const idx = useMemo(() => {
+    const cel = {}, recDia = {}, aus = {}, ausCel = {};
+    const push = (k, v) => (cel[k] ||= []).push(v);
+    dados.alocacoes.forEach((a) => {
+      push(a.demanda_id + '|' + a.dia, { kind: 'func', rec: a.funcionario_id, a });
+      const k = 'func|' + a.funcionario_id + '|' + a.dia; recDia[k] = (recDia[k] || 0) + 1;
+    });
+    dados.veiculo_alocacoes.forEach((a) => {
+      push(a.demanda_id + '|' + a.dia, { kind: 'veic', rec: a.veiculo_id, a });
+      const k = 'veic|' + a.veiculo_id + '|' + a.dia; recDia[k] = (recDia[k] || 0) + 1;
+    });
+    dados.ausencias.forEach((a) => {
+      aus[a.funcionario_id + '|' + a.dia] = a;
+      (ausCel['out:' + a.tipo + '|' + a.dia] ||= []).push(a);
+    });
+    return { cel, recDia, aus, ausCel };
+  }, [dados.alocacoes, dados.veiculo_alocacoes, dados.ausencias]);
 
-  // linhas agrupadas por empresa
+  const fora = (funcId, dia) => idx.aus[funcId + '|' + dia];
+  const livres = (dia) => funcs.filter((f) => !idx.recDia['func|' + f.id + '|' + dia] && !fora(f.id, dia));
+
   const secoes = EMPRESAS.map((e) => ({
     ...e,
     linhas: demandas
@@ -44,8 +58,31 @@ export function Agenda({ demandas, funcionarios, alocacoes, acoes, avisar }) {
       .sort((a, b) => ordemGrupo(a.grupo, b.grupo) || (a.entrega || '9999').localeCompare(b.entrega || '9999')),
   })).filter((s) => s.linhas.length);
 
+  // ---------- soltar em uma célula ----------
+  const soltar = (c, chave) => {
+    const [alvoId, dia] = chave.split('|');
+    if (alvoId.startsWith('out:')) {
+      const tipo = alvoId.slice(4);
+      if (c.kind === 'veic') { avisar('Veículos não entram em folga. Arraste para uma obra ou para a lixeira.'); return; }
+      if (c.ausId) {
+        const a = dados.ausencias.find((x) => x.id === c.ausId);
+        if (a && a.dia !== dia) dados.removerAusencia(c.ausId);
+      }
+      dados.marcarAusencia(c.id, dia, tipo);
+      if (c.alocId) dados.removerAlocacao('func', c.alocId);
+      return;
+    }
+    if (c.alocId) dados.moverAlocacao(c.kind, c.alocId, alvoId, dia);
+    else dados.alocar(c.kind, c.id, alvoId, dia);
+    if (c.ausId) dados.removerAusencia(c.ausId);
+  };
+  const descartar = (c) => {
+    if (c.alocId) dados.removerAlocacao(c.kind, c.alocId);
+    if (c.ausId) dados.removerAusencia(c.ausId);
+  };
+
   // ---------- arrastar (mouse e toque, via pointer events) ----------
-  const celulaEm = (x, y) => {
+  const sob = (x, y) => {
     const el = document.elementFromPoint(x, y);
     return { cel: el?.closest('[data-cel]')?.getAttribute('data-cel') || null, lixeira: !!el?.closest('[data-lixeira]') };
   };
@@ -53,10 +90,7 @@ export function Agenda({ demandas, funcionarios, alocacoes, acoes, avisar }) {
   const iniciar = (e, carga) => {
     if (e.button !== undefined && e.button !== 0) return;
     const sx = e.clientX, sy = e.clientY;
-    let ativo = false;
-    let pos = { x: sx, y: sy };
-    let timer = null;
-    // rola a página/tabela sozinho quando o dedo/mouse chega perto da borda
+    let ativo = false, pos = { x: sx, y: sy }, timer = null;
     const rolar = () => {
       const m = 70, v = 14;
       if (pos.y > window.innerHeight - m) window.scrollBy(0, v);
@@ -65,7 +99,7 @@ export function Agenda({ demandas, funcionarios, alocacoes, acoes, avisar }) {
       if (wrap) {
         const r = wrap.getBoundingClientRect();
         if (pos.x > r.right - m) wrap.scrollLeft += v;
-        else if (pos.x < r.left + m + 180) wrap.scrollLeft -= v;
+        else if (pos.x < r.left + m + 180 && pos.x > r.left) wrap.scrollLeft -= v;
       }
     };
     const mover = (ev) => {
@@ -73,77 +107,93 @@ export function Agenda({ demandas, funcionarios, alocacoes, acoes, avisar }) {
       if (!ativo) {
         if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 6) return;
         ativo = true;
-        dragRef.current = carga;
         timer = setInterval(rolar, 16);
       }
       ev.preventDefault();
       setArraste({ rotulo: carga.rotulo, x: ev.clientX, y: ev.clientY });
-      const { cel, lixeira } = celulaEm(ev.clientX, ev.clientY);
-      setAlvo(cel); setLixeiraQuente(lixeira);
+      const s = sob(ev.clientX, ev.clientY);
+      setAlvo(s.cel); setLixeiraQuente(s.lixeira);
     };
-    const soltar = (ev) => {
+    const fim = () => {
+      clearInterval(timer);
       window.removeEventListener('pointermove', mover);
-      window.removeEventListener('pointerup', soltar);
-      window.removeEventListener('pointercancel', cancelar);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', fim);
+      setArraste(null); setAlvo(null); setLixeiraQuente(false);
+    };
+    const up = (ev) => {
       if (ativo) {
-        const { cel, lixeira } = celulaEm(ev.clientX, ev.clientY);
-        if (cel) {
-          const [demanda_id, dia] = cel.split('|');
-          if (carga.alocacaoId) acoes.moverAlocacao(carga.alocacaoId, demanda_id, dia);
-          else acoes.alocar(carga.funcId, demanda_id, dia);
-        } else if (lixeira && carga.alocacaoId) {
-          acoes.removerAlocacao(carga.alocacaoId);
-        }
+        const s = sob(ev.clientX, ev.clientY);
+        if (s.cel) soltar(carga, s.cel);
+        else if (s.lixeira) descartar(carga);
         setSelecionado(null);
-      } else if (carga.aoTocar) {
-        carga.aoTocar();
-      }
+      } else if (carga.aoTocar) carga.aoTocar();
       fim();
     };
-    const cancelar = () => {
-      window.removeEventListener('pointermove', mover);
-      window.removeEventListener('pointerup', soltar);
-      window.removeEventListener('pointercancel', cancelar);
-      fim();
-    };
-    const fim = () => { clearInterval(timer); dragRef.current = null; setArraste(null); setAlvo(null); setLixeiraQuente(false); };
     window.addEventListener('pointermove', mover, { passive: false });
-    window.addEventListener('pointerup', soltar);
-    window.addEventListener('pointercancel', cancelar);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', fim);
   };
 
-  const tocarCelula = (demanda_id, dia) => {
+  const tocarCelula = (chave) => {
     if (!selecionado) return;
-    acoes.alocar(selecionado, demanda_id, dia);
+    soltar({ kind: selecionado.kind, id: selecionado.id }, chave);
   };
+  const alternar = (kind, id) => setSelecionado((s) => (s && s.kind === kind && s.id === id ? null : { kind, id }));
 
   const repetirSemanaAnterior = async () => {
-    const anterior = addDias(semana, -7);
-    const fimAnt = addDias(anterior, 6);
+    const ini = addDias(semana, -7), fim = addDias(ini, 6);
     const abertas = new Set(demandas.filter((d) => !d.arquivada).map((d) => d.id));
-    const existe = new Set(alocacoes.map((a) => `${a.funcionario_id}|${a.demanda_id}|${a.dia}`));
-    const novas = alocacoes
-      .filter((a) => a.dia >= anterior && a.dia <= fimAnt && abertas.has(a.demanda_id))
-      .map((a) => ({ funcionario_id: a.funcionario_id, demanda_id: a.demanda_id, dia: addDias(a.dia, 7) }))
-      .filter((a) => !existe.has(`${a.funcionario_id}|${a.demanda_id}|${a.dia}`));
-    if (!novas.length) { avisar('A semana anterior não tem nada novo para copiar.'); return; }
-    const n = await acoes.inserirAlocacoes(novas);
-    if (n) avisar(`${n} alocações copiadas da semana anterior.`);
+    let total = 0;
+    for (const [kind, lista, col] of [['func', dados.alocacoes, 'funcionario_id'], ['veic', dados.veiculo_alocacoes, 'veiculo_id']]) {
+      const existe = new Set(lista.map((a) => `${a[col]}|${a.demanda_id}|${a.dia}`));
+      const novas = lista
+        .filter((a) => a.dia >= ini && a.dia <= fim && abertas.has(a.demanda_id))
+        .map((a) => ({ [col]: a[col], demanda_id: a.demanda_id, dia: addDias(a.dia, 7) }))
+        .filter((a) => !existe.has(`${a[col]}|${a.demanda_id}|${a.dia}`))
+        .filter((a) => kind === 'veic' || !fora(a.funcionario_id, a.dia));
+      if (novas.length && (await dados.inserirAlocacoes(kind, novas))) total += novas.length;
+    }
+    avisar(total ? `${total} alocações copiadas da semana anterior.` : 'A semana anterior não tem nada novo para copiar.');
   };
 
-  const rotuloSemana = `${fmt(dias[0])} a ${fmt(dias[dias.length - 1])}`;
   const estaSemana = semana === inicioSemana(dia0);
+  const sel = (kind, id) => selecionado?.kind === kind && selecionado?.id === id;
+  const nomeSel = selecionado ? nome[selecionado.kind][selecionado.id] : '';
+
+  // ---------- chip dentro de uma célula ----------
+  const ChipCelula = ({ kind, recId, alocId, ausId, dia, extraClasse, aviso }) => {
+    const n = nome[kind][recId] || '?';
+    return (
+      <span className={'chip small ' + extraClasse} title={aviso || n}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => { e.stopPropagation(); iniciar(e, { kind, id: recId, alocId, ausId, rotulo: n }); }}>
+        {n}
+        <button type="button" className="x" aria-label={`Remover ${n}`}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); descartar({ kind, alocId, ausId }); }}>×</button>
+      </span>
+    );
+  };
+
+  const celula = (chave, dia, conteudo) => (
+    <td key={dia} data-cel={chave}
+      className={'cell' + (dia === dia0 ? ' today' : '') + (alvo === chave ? ' hot' : '') + (selecionado ? ' armed' : '')}
+      onClick={() => tocarCelula(chave)}>
+      <div className="cell-inner">{conteudo}</div>
+    </td>
+  );
 
   return (
     <section className="card agenda" aria-label="Agenda das equipes">
       <div className="agenda-head">
         <div>
           <h2>Agenda das equipes</h2>
-          <p className="agenda-sub">Arraste os funcionários para a obra e o dia. Tudo atualiza na hora para todo mundo.</p>
+          <p className="agenda-sub">Arraste funcionários e veículos para a obra e o dia. Quem estiver fora, arraste para Folga ou Férias.</p>
         </div>
         <div className="week-nav">
           <button type="button" className="pill" aria-label="Semana anterior" onClick={() => setSemana(addDias(semana, -7))}>‹</button>
-          <span className="week-label">{rotuloSemana}</span>
+          <span className="week-label">{fmt(dias[0])} a {fmt(dias[dias.length - 1])}</span>
           <button type="button" className="pill" aria-label="Próxima semana" onClick={() => setSemana(addDias(semana, 7))}>›</button>
           {!estaSemana && <button type="button" className="pill" onClick={() => setSemana(inicioSemana(dia0))}>Hoje</button>}
           <button type="button" className="pill ghost" onClick={() => setMostrarDomingo((v) => !v)}>{mostrarDomingo ? 'Ocultar domingo' : 'Mostrar domingo'}</button>
@@ -152,21 +202,48 @@ export function Agenda({ demandas, funcionarios, alocacoes, acoes, avisar }) {
       </div>
 
       <div className="palette">
-        <span className="palette-hint">{selecionado ? `Toque nas células para alocar ${nomeFunc[selecionado]} · toque no nome de novo para soltar` : 'Funcionários (bolinha verde = livre hoje):'}</span>
-        {ativos.map((f) => {
-          const livre = !porFuncDia[f.id + '|' + dia0];
-          return (
-            <span key={f.id} role="button" tabIndex={0}
-              className={'chip' + (selecionado === f.id ? ' sel' : '') + (livre ? ' free' : '')}
-              aria-pressed={selecionado === f.id}
-              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setSelecionado((s) => (s === f.id ? null : f.id))}
-              onPointerDown={(e) => iniciar(e, { funcId: f.id, rotulo: f.nome, aoTocar: () => setSelecionado((s) => (s === f.id ? null : f.id)) })}>
-              {f.nome}
+        <div className="palette-group">
+          <span className="palette-hint">
+            {selecionado ? `Toque nas células para colocar ${nomeSel} · toque no nome de novo para soltar` : 'Funcionários (verde = livre hoje, tracejado = fora hoje):'}
+          </span>
+          {funcs.map((f) => {
+            const aus = fora(f.id, dia0);
+            const livre = !aus && !idx.recDia['func|' + f.id + '|' + dia0];
+            return (
+              <span key={f.id} role="button" tabIndex={0}
+                className={'chip' + (sel('func', f.id) ? ' sel' : '') + (livre ? ' free' : '') + (aus ? ' out' : '')}
+                title={aus ? `${f.nome} está de ${aus.tipo === 'ferias' ? 'férias' : 'folga'} hoje` : f.nome}
+                aria-pressed={sel('func', f.id)}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && alternar('func', f.id)}
+                onPointerDown={(e) => iniciar(e, { kind: 'func', id: f.id, rotulo: f.nome, aoTocar: () => alternar('func', f.id) })}>
+                {f.nome}
+              </span>
+            );
+          })}
+          {!funcs.length && <span className="empty">Cadastre funcionários na aba Equipes.</span>}
+        </div>
+        <div className="palette-group">
+          <span className="palette-hint">Veículos:</span>
+          {veics.map((v) => (
+            <span key={v.id} role="button" tabIndex={0}
+              className={'chip veic' + (sel('veic', v.id) ? ' sel' : '')}
+              aria-pressed={sel('veic', v.id)}
+              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && alternar('veic', v.id)}
+              onPointerDown={(e) => iniciar(e, { kind: 'veic', id: v.id, rotulo: v.nome, aoTocar: () => alternar('veic', v.id) })}>
+              {v.nome}{v.placa ? ' · ' + v.placa : ''}
             </span>
-          );
-        })}
-        {!ativos.length && <span className="empty">Cadastre funcionários na aba Equipes.</span>}
-        <span data-lixeira="1" className={'trash' + (lixeiraQuente ? ' hot' : '')}>Solte aqui para remover</span>
+          ))}
+          {!veics.length && <span className="empty" style={{ padding: 0 }}>Cadastre os veículos na aba Frotas.</span>}
+          <span data-lixeira="1" className={'trash' + (lixeiraQuente ? ' hot' : '')}>Solte aqui para remover</span>
+        </div>
+      </div>
+
+      <div className="legend" aria-label="Legenda">
+        <span><i style={{ background: 'var(--lav)' }} />Funcionário</span>
+        <span><i style={{ background: 'var(--mint)' }} />Veículo</span>
+        <span><i style={{ background: 'var(--peach)', outline: '1.5px solid var(--late-ink)' }} />Conflito: duas obras no dia ou está de folga</span>
+        <span><i style={{ background: 'var(--red)', borderRadius: '50%' }} />Entrega em até 3 dias / atrasada</span>
+        <span><i style={{ background: '#E0B000', borderRadius: '50%' }} />Entrega em até 7 dias</span>
       </div>
 
       <div className="grid-wrap">
@@ -177,7 +254,7 @@ export function Agenda({ demandas, funcionarios, alocacoes, acoes, avisar }) {
               {dias.map((d) => {
                 const l = livres(d);
                 return (
-                  <th key={d} scope="col" className={d === dia0 ? 'today' : ''} title={l.length ? 'Livres: ' + l.map((f) => f.nome).join(', ') : 'Todos alocados'}>
+                  <th key={d} scope="col" className={d === dia0 ? 'today' : ''} title={l.length ? 'Livres: ' + l.map((f) => f.nome).join(', ') : 'Ninguém livre'}>
                     <div className="day-name">{diaSemana(d)} {fmt(d)}</div>
                     <div className="day-free">{l.length} {l.length === 1 ? 'livre' : 'livres'}</div>
                   </th>
@@ -186,43 +263,45 @@ export function Agenda({ demandas, funcionarios, alocacoes, acoes, avisar }) {
             </tr>
           </thead>
           <tbody>
+            <tr className="sep"><td colSpan={dias.length + 1}>Fora da obra</td></tr>
+            {FORA.map((t) => (
+              <tr key={t.id} className="out-row">
+                <th scope="row" className="rowhead"><div className="n">{t.nome}</div></th>
+                {dias.map((dia) => {
+                  const chave = 'out:' + t.id + '|' + dia;
+                  return celula(chave, dia, (idx.ausCel[chave] || []).map((a) => (
+                    <ChipCelula key={a.id} kind="func" recId={a.funcionario_id} ausId={a.id} dia={dia} extraClasse={t.id} />
+                  )));
+                })}
+              </tr>
+            ))}
             {secoes.map((s) => [
               <tr key={'sep-' + s.id} className="sep"><td colSpan={dias.length + 1}>{s.nome}</td></tr>,
-              ...s.linhas.map((d) => (
-                <tr key={d.id}>
-                  <th scope="row" className="rowhead">
-                    <div className="n">{d.nome}</div>
-                    <div className="s">{d.grupo}{d.entrega ? ' · até ' + fmt(d.entrega) : ''}</div>
-                  </th>
-                  {dias.map((dia) => {
-                    const chave = d.id + '|' + dia;
-                    const lista = porCelula[chave] || [];
-                    return (
-                      <td key={dia} data-cel={chave}
-                        className={'cell' + (dia === dia0 ? ' today' : '') + (alvo === chave ? ' hot' : '') + (selecionado ? ' armed' : '')}
-                        onClick={() => tocarCelula(d.id, dia)}>
-                        <div className="cell-inner">
-                          {lista.map((a) => {
-                            const conflito = porFuncDia[a.funcionario_id + '|' + a.dia] > 1;
-                            const nome = nomeFunc[a.funcionario_id] || '?';
-                            return (
-                              <span key={a.id} className={'chip small' + (conflito ? ' conf' : '')}
-                                title={conflito ? `${nome} está em mais de uma obra neste dia` : nome}
-                                onClick={(e) => e.stopPropagation()}
-                                onPointerDown={(e) => { e.stopPropagation(); iniciar(e, { alocacaoId: a.id, rotulo: nome }); }}>
-                                {nome}
-                                <button type="button" className="x" aria-label={`Remover ${nome}`}
-                                  onPointerDown={(e) => e.stopPropagation()}
-                                  onClick={(e) => { e.stopPropagation(); acoes.removerAlocacao(a.id); }}>×</button>
-                              </span>
-                            );
-                          })}
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-              )),
+              ...s.linhas.map((d) => {
+                const sit = situacao(d, dia0);
+                return (
+                  <tr key={d.id}>
+                    <th scope="row" className="rowhead">
+                      <div className="n">{['atrasada', 'urgente', 'semana'].includes(sit) && <span className={'alert ' + sit} />}{d.nome}</div>
+                      <div className="s">{d.grupo}{d.entrega ? ' · até ' + fmt(d.entrega) : ''}</div>
+                    </th>
+                    {dias.map((dia) => {
+                      const chave = d.id + '|' + dia;
+                      return celula(chave, dia, (idx.cel[chave] || []).map(({ kind, rec, a }) => {
+                        const duplo = idx.recDia[kind + '|' + rec + '|' + dia] > 1;
+                        const aus = kind === 'func' && fora(rec, dia);
+                        const n = nome[kind][rec] || '?';
+                        const aviso = aus ? `${n} está de ${aus.tipo === 'ferias' ? 'férias' : 'folga'} neste dia`
+                          : duplo ? `${n} está em mais de uma obra neste dia` : '';
+                        return (
+                          <ChipCelula key={a.id} kind={kind} recId={rec} alocId={a.id} dia={dia}
+                            extraClasse={(kind === 'veic' ? 'veic' : '') + (aviso ? ' conf' : '')} aviso={aviso} />
+                        );
+                      }));
+                    })}
+                  </tr>
+                );
+              }),
             ])}
           </tbody>
         </table>

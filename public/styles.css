@@ -15,6 +15,12 @@
   --peach: #F8C9B4;
   --late-bg: #FCE2D6;
   --late-ink: #9A3412;
+  --yellow: #FBE38E;
+  --yellow-soft: #FFF6D1;
+  --yellow-ink: #6B4E00;
+  --red: #C62828;
+  --red-soft: #F9C4C0;
+  --red-tint: #FFEDEB;
   --radius-xl: 28px;
   --radius-l: 24px;
   --radius-m: 16px;
@@ -116,8 +122,15 @@ h1, h2, h3, p { margin: 0; }
 .item-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .item-name { font-weight: 700; font-size: 14px; }
 .due { font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; white-space: nowrap; background: #EDEFF2; color: #4B5260; }
-.due.atrasada { background: var(--late-bg); color: var(--late-ink); }
-.due.semana { background: var(--lime-soft); color: var(--lime-ink); }
+.due.atrasada { background: var(--red); color: #fff; }
+.due.urgente { background: var(--red-soft); color: #7F1414; }
+.due.semana { background: var(--yellow); color: var(--yellow-ink); }
+/* cartões com alerta de entrega */
+.item.sit-semana { background: var(--yellow-soft); border-color: #EBCB55; }
+.item.sit-urgente { background: var(--red-tint); border-color: #E98A82; }
+.item.sit-atrasada { background: var(--red-tint); border-color: var(--red); }
+.item.sit-atrasada .item-name, .item.sit-urgente .item-name { color: #7F1414; }
+.item.sit-urgente .bar > span, .item.sit-atrasada .bar > span { background: var(--red); }
 .item-meta { font-size: 12px; color: var(--muted); }
 .prog { display: flex; align-items: center; gap: 10px; }
 .bar { flex: 1; height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
@@ -253,3 +266,35 @@ table.cal { border-collapse: separate; border-spacing: 0; width: 100%; min-width
   .me { margin-top: 0; }
   .head h1 { font-size: 26px; }
 }
+
+/* ---------- Folgas / veículos na agenda ---------- */
+.palette-group { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; width: 100%; }
+.chip.out { opacity: .55; border-style: dashed; }
+.chip.out::after { content: ''; }
+.chip.veic { background: var(--mint); border-color: transparent; }
+.chip.veic.sel { background: var(--ink); color: #fff; }
+.chip.small.veic { background: var(--mint); }
+.chip.small.folga { background: #E6E8EC; }
+.chip.small.ferias { background: var(--yellow); }
+.cal tr.out-row th.rowhead { background: #FAFAFB; }
+.cal tr.out-row td { background: #FAFAFB; }
+.cal tr.out-row td.hot .cell-inner { background: var(--lime-soft); }
+.rowhead .alert { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.rowhead .alert.atrasada, .rowhead .alert.urgente { background: var(--red); }
+.rowhead .alert.semana { background: #E0B000; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+
+/* ---------- Frotas ---------- */
+.vehicles { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.vehicle { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: var(--radius-m); background: var(--soft); }
+.vehicle .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.vehicle .nm { font-weight: 800; font-size: 16px; }
+.vehicle .sub { font-size: 12px; color: var(--muted); }
+.plate { font-family: ui-monospace, Menlo, monospace; font-weight: 700; font-size: 12px; background: #fff; border: 1.5px solid var(--ink); border-radius: 6px; padding: 2px 8px; letter-spacing: .06em; }
+.badge { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: #EDEFF2; color: #4B5260; align-self: flex-start; }
+.badge.red { background: var(--red); color: #fff; }
+.badge.yellow { background: var(--yellow); color: var(--yellow-ink); }
+.badge.green { background: var(--lime-soft); color: var(--lime-ink); }
+.chip.small.conf.veic, .chip.small.conf { background: var(--peach); border-color: var(--late-ink); }
