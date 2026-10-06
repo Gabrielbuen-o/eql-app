@@ -180,7 +180,8 @@ function CartaoFabrica({ d, dia, onAbrir, res }) {
   const sit = emEstoque || d.arquivada ? 'ok' : situacao(d, dia);
   const prazo = d.arquivada ? 'Concluída' : emEstoque ? 'Em estoque' : rotuloPrazo(d, dia);
   // o produto já aparece no título do grupo; aqui vai a especificação
-  const produto = d.especificacao || d.descricao || d.produto;
+  const espec = d.produto === 'Concreto ensacado' || (!d.produto && /saco/i.test(d.nome || '')) ? '20 kg · 30 MPa' : d.especificacao;
+  const produto = [espec, d.descricao && d.descricao !== espec ? d.descricao : null].filter(Boolean).join(' · obs.: ') || d.produto;
   return (
     <button type="button" className={'item sit-' + sit + (onAbrir ? '' : ' so-ver')} onClick={onAbrir || undefined}
       aria-label={`${d.nome}, ${produto}, ${prazo}, ${pct}% em estoque`}>

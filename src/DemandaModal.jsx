@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { CustosObra } from './CustosObra.jsx';
 import { EMPRESAS, PAGAMENTOS, PRODUTOS_EKO, empresaPorId, fasesDe, resumoProducao, tempoRelativo } from './lib.js';
 
+const PADRAO_CONCRETO = '20 kg · 30 MPa';
+
 const VAZIA = {
   empresa: 'engenharia', grupo: '', nome: '', descricao: '', fase: 'orcamento', percentual: 0,
   inicio: '', entrega: '', pagamento: 'a_faturar', qtd_total: '', qtd_produzida: 0, unidade: '', arquivada: false,
@@ -23,7 +25,7 @@ export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, l
   });
   const mudarProduto = (produto) => setD((x) => {
     const p = PRODUTOS_EKO.find((i) => i.id === produto);
-    return { ...x, produto, unidade: p?.unidade || x.unidade, especificacao: x.especificacao || p?.espec || '' };
+    return { ...x, produto, unidade: p?.unidade || x.unidade, especificacao: produto === 'Concreto ensacado' ? PADRAO_CONCRETO : (x.especificacao === PADRAO_CONCRETO ? '' : x.especificacao) };
   });
   const podeSalvar = producao ? !!d.produto : !!d.nome.trim();
   const total = Number(d.qtd_total) || 0;
@@ -43,7 +45,7 @@ export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, l
       nome: producao ? cliente || 'Estoque' : d.nome.trim(),
       grupo: producao ? cliente || 'Estoque' : cliente || (d.empresa === 'engenharia' ? 'Obras civis' : 'Obras'),
       produto: producao ? d.produto || null : null,
-      especificacao: producao ? d.especificacao?.trim() || null : null,
+      especificacao: producao ? (d.produto === 'Concreto ensacado' ? PADRAO_CONCRETO : d.especificacao?.trim() || null) : null,
       inicio: d.inicio || null,
       entrega: d.entrega || null,
       percentual: Math.max(0, Math.min(100, Number(d.percentual) || 0)),
@@ -115,8 +117,18 @@ export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, l
                 {PRODUTOS_EKO.map((p) => <option key={p.id} value={p.id}>{p.id}</option>)}
               </select>
             </label>
-            <label className="field"><span>Especificação</span>
-              <input disabled={L} value={d.especificacao || ''} onChange={(e) => set('especificacao')(e.target.value)} placeholder="Ex.: 20 kg · 30 MPa, 2,20 m" />
+            {d.produto === 'Concreto ensacado' ? (
+              <div className="field"><span>Especificação</span>
+                <div className="spec-fixa">20 kg · 30 MPa <small>padrão</small></div>
+              </div>
+            ) : (
+              <label className="field"><span>Especificação</span>
+                <input disabled={L} value={d.especificacao || ''} onChange={(e) => set('especificacao')(e.target.value)} placeholder="Ex.: 2,20 m, 25 kg" />
+              </label>
+            )}
+            <label className="field" style={{ gridColumn: '1 / -1' }}><span>Observação {d.produto === 'Concreto ensacado' ? '(quando for diferente do padrão)' : ''}</span>
+              <input disabled={L} value={d.descricao || ''} onChange={(e) => set('descricao')(e.target.value)}
+                placeholder={d.produto === 'Concreto ensacado' ? 'Ex.: sacos de 30 kg, resistência 25 MPa' : 'Ex.: entregar na obra, retirar na fábrica'} />
             </label>
           </div>
         ) : (
