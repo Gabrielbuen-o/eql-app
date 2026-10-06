@@ -559,3 +559,4 @@ table.sheet { border-collapse: separate; border-spacing: 0; width: 100%; min-wid
 }
 .bulk .field { flex: 0 1 150px; }
 .bulk-count { font-weight: 800; align-self: center; margin-right: 6px; color: var(--brand-text); }
+.cell-input.cli { width: 150px; }

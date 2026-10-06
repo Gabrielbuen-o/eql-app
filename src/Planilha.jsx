@@ -24,6 +24,7 @@ export function Planilha({ demandas, dados, pode, custos, onAbrir, avisar }) {
       importancia: (x) => [PESO[x.sit], x.d.entrega || '9999-99-99'],
       nome: (x) => [x.d.nome.toLowerCase()],
       empresa: (x) => [x.d.empresa, x.d.grupo || ''],
+      cliente: (x) => [(x.d.grupo || '').toLowerCase()],
       fase: (x) => [x.d.fase],
       pct: (x) => [x.pct],
       inicio: (x) => [x.d.inicio || '9999-99-99'],
@@ -78,6 +79,7 @@ export function Planilha({ demandas, dados, pode, custos, onAbrir, avisar }) {
       </button>
     </th>
   );
+  const clientes = [...new Set(dados.demandas.map((d) => d.grupo).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const todasFases = [...new Map([...fasesDe('engenharia'), ...fasesDe('eko')].map((f) => [f.id, f])).values()];
 
   return (
@@ -114,12 +116,14 @@ export function Planilha({ demandas, dados, pode, custos, onAbrir, avisar }) {
         </div>
       )}
 
+      <datalist id="planilha-clientes">{clientes.map((c) => <option key={c} value={c} />)}</datalist>
       <div className="grid-wrap">
         <table className="sheet">
           <thead>
             <tr>
               <th scope="col" className="ck"><input type="checkbox" aria-label="Selecionar todas" checked={todosMarcados} onChange={alternarTodos} /></th>
               <Th col="nome">Demanda</Th>
+              <Th col="cliente">Cliente</Th>
               <Th col="empresa">Empresa</Th>
               <Th col="importancia">Prazo</Th>
               <Th col="fase">Fase</Th>
@@ -133,10 +137,10 @@ export function Planilha({ demandas, dados, pode, custos, onAbrir, avisar }) {
           </thead>
           <tbody>
             {linhas.map(({ d, sit, pct, r }) => (
-              <LinhaPlanilha key={d.id} d={d} sit={sit} pct={pct} r={r} dia={dia} L={L} marcado={sel.has(d.id)}
+              <LinhaPlanilha key={d.id} d={d} sit={sit} pct={pct} r={r} dia={dia} L={L} marcado={sel.has(d.id)} clientes={clientes}
                 onMarcar={() => alternar(d.id)} onAbrir={() => onAbrir(d)} salvar={salvar} verValores={verValores} dados={dados} />
             ))}
-            {!linhas.length && <tr><td colSpan={11} className="empty" style={{ padding: 16 }}>Nenhuma demanda neste filtro.</td></tr>}
+            {!linhas.length && <tr><td colSpan={12} className="empty" style={{ padding: 16 }}>Nenhuma demanda neste filtro.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -145,8 +149,16 @@ export function Planilha({ demandas, dados, pode, custos, onAbrir, avisar }) {
   );
 }
 
-function LinhaPlanilha({ d, sit, pct, r, dia, L, marcado, onMarcar, onAbrir, salvar, verValores, dados }) {
+function LinhaPlanilha({ d, sit, pct, r, dia, L, marcado, onMarcar, onAbrir, salvar, verValores, dados, clientes }) {
   const [pctTxt, setPctTxt] = useState(String(d.percentual ?? 0));
+  const [cliTxt, setCliTxt] = useState(d.grupo || '');
+  useEffect(() => { setCliTxt(d.grupo || ''); }, [d.grupo]);
+  const salvarCliente = () => {
+    const v = cliTxt.trim();
+    if (v === (d.grupo || '')) return;
+    // na fábrica o nome do pedido é o próprio cliente
+    salvar(d, d.empresa === 'eko' ? { grupo: v || 'Estoque', nome: v || 'Estoque' } : { grupo: v || null });
+  };
   const [vendTxt, setVendTxt] = useState(r?.vendido != null ? String(r.vendido) : '');
   useEffect(() => { setPctTxt(String(d.percentual ?? 0)); }, [d.percentual]);
   useEffect(() => { setVendTxt(r?.vendido != null ? String(r.vendido) : ''); }, [r?.vendido]);
@@ -168,8 +180,12 @@ function LinhaPlanilha({ d, sit, pct, r, dia, L, marcado, onMarcar, onAbrir, sal
       <td className="ck"><input type="checkbox" aria-label={`Selecionar ${d.nome}`} checked={marcado} onChange={onMarcar} /></td>
       <th scope="row">
         <button type="button" className="link-cell" onClick={onAbrir}>{d.nome}</button>
-        <small>{d.empresa === 'eko' ? [d.produto, d.especificacao].filter(Boolean).join(' · ') : d.grupo}</small>
+        {d.empresa === 'eko' && <small>{[d.produto, d.especificacao].filter(Boolean).join(' · ')}</small>}
       </th>
+      <td>
+        <input className="cell-input cli" list="planilha-clientes" disabled={L} aria-label={`Cliente de ${d.nome}`} value={cliTxt}
+          placeholder="—" onChange={(e) => setCliTxt(e.target.value)} onBlur={salvarCliente} onKeyDown={enter} />
+      </td>
       <td><span className="dot" style={{ background: emp?.cor, display: 'inline-block', marginRight: 6, verticalAlign: 'middle' }} />{emp?.curto}</td>
       <td><span className={'due ' + (d.arquivada ? 'concl' : sit)}>{d.arquivada ? 'Concluída' : rotuloPrazo(d, dia)}</span></td>
       <td>
