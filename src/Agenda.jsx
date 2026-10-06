@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { EMPRESAS, addDias, diaSemana, fmt, hoje, inicioSemana, ordemGrupo, situacao } from './lib.js';
 
 const FORA = [
@@ -10,7 +11,8 @@ const FORA = [
 // Arraste funcionários e veículos da paleta para as células; arraste um nome já
 // colocado para outra célula (mover) ou para a lixeira (remover).
 // No celular também dá para tocar no nome e depois tocar na célula.
-export function Agenda({ demandas, dados, avisar }) {
+export function Agenda({ demandas, dados, avisar, podeEditar = true }) {
+  const ro = !podeEditar;
   const [semana, setSemana] = useState(() => inicioSemana(hoje()));
   const [mostrarDomingo, setMostrarDomingo] = useState(false);
   const [selecionado, setSelecionado] = useState(null); // { kind, id } — modo toque
@@ -164,6 +166,7 @@ export function Agenda({ demandas, dados, avisar }) {
   // ---------- chip dentro de uma célula ----------
   const ChipCelula = ({ kind, recId, alocId, ausId, dia, extraClasse, aviso }) => {
     const n = nome[kind][recId] || '?';
+    if (ro) return <span className={'chip small ro ' + extraClasse} title={aviso || n} style={{ paddingRight: 10 }}>{n}</span>;
     return (
       <span className={'chip small ' + extraClasse} title={aviso || n}
         onClick={(e) => e.stopPropagation()}
@@ -179,7 +182,7 @@ export function Agenda({ demandas, dados, avisar }) {
   const celula = (chave, dia, conteudo) => (
     <td key={dia} data-cel={chave}
       className={'cell' + (dia === dia0 ? ' today' : '') + (alvo === chave ? ' hot' : '') + (selecionado ? ' armed' : '')}
-      onClick={() => tocarCelula(chave)}>
+      onClick={ro ? undefined : () => tocarCelula(chave)}>
       <div className="cell-inner">{conteudo}</div>
     </td>
   );
@@ -189,7 +192,7 @@ export function Agenda({ demandas, dados, avisar }) {
       <div className="agenda-head">
         <div>
           <h2>Agenda das equipes</h2>
-          <p className="agenda-sub">Arraste funcionários e veículos para a obra e o dia. Quem estiver fora, arraste para Folga ou Férias.</p>
+          <p className="agenda-sub">{ro ? 'Quem está em cada obra, dia a dia.' : 'Arraste funcionários e veículos para a obra e o dia. Quem estiver fora, arraste para Folga ou Férias.'}</p>
         </div>
         <div className="week-nav">
           <button type="button" className="pill" aria-label="Semana anterior" onClick={() => setSemana(addDias(semana, -7))}>‹</button>
@@ -197,11 +200,11 @@ export function Agenda({ demandas, dados, avisar }) {
           <button type="button" className="pill" aria-label="Próxima semana" onClick={() => setSemana(addDias(semana, 7))}>›</button>
           {!estaSemana && <button type="button" className="pill" onClick={() => setSemana(inicioSemana(dia0))}>Hoje</button>}
           <button type="button" className="pill ghost" onClick={() => setMostrarDomingo((v) => !v)}>{mostrarDomingo ? 'Ocultar domingo' : 'Mostrar domingo'}</button>
-          <button type="button" className="pill dark" onClick={repetirSemanaAnterior}>Repetir semana anterior</button>
+          {!ro && <button type="button" className="pill dark" onClick={repetirSemanaAnterior}>Repetir semana anterior</button>}
         </div>
       </div>
 
-      <div className="palette">
+      {!ro && <div className="palette">
         <div className="palette-group">
           <span className="palette-hint">
             {selecionado ? `Toque nas células para colocar ${nomeSel} · toque no nome de novo para soltar` : 'Funcionários (verde = livre hoje, tracejado = fora hoje):'}
@@ -236,14 +239,14 @@ export function Agenda({ demandas, dados, avisar }) {
           {!veics.length && <span className="empty" style={{ padding: 0 }}>Cadastre os veículos na aba Frotas.</span>}
           <span data-lixeira="1" className={'trash' + (lixeiraQuente ? ' hot' : '')}>Solte aqui para remover</span>
         </div>
-      </div>
+      </div>}
 
       <div className="legend" aria-label="Legenda">
         <span><i style={{ background: 'var(--lav)' }} />Funcionário</span>
         <span><i style={{ background: 'var(--mint)' }} />Veículo</span>
         <span><i style={{ background: 'var(--peach)', outline: '1.5px solid var(--late-ink)' }} />Conflito: duas obras no dia ou está de folga</span>
         <span><i style={{ background: 'var(--red)', borderRadius: '50%' }} />Entrega em até 3 dias / atrasada</span>
-        <span><i style={{ background: '#E0B000', borderRadius: '50%' }} />Entrega em até 7 dias</span>
+        <span><i style={{ background: 'var(--yellow-dot)', borderRadius: '50%' }} />Entrega em até 7 dias</span>
       </div>
 
       <div className="grid-wrap">
@@ -307,7 +310,11 @@ export function Agenda({ demandas, dados, avisar }) {
         </table>
       </div>
 
-      {arraste && <div className="drag-ghost" style={{ left: arraste.x, top: arraste.y }}>{arraste.rotulo}</div>}
+      {arraste && createPortal(<div className="drag-ghost" style={{ left: arraste.x / zoomAtual(), top: arraste.y / zoomAtual() }}>{arraste.rotulo}</div>, document.body)}
     </section>
   );
+}
+
+function zoomAtual() {
+  return parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
 }

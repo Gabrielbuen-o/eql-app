@@ -1,26 +1,31 @@
 import { useCallback, useEffect, useState } from 'react';
-import { configurado, supabase, iniciais } from './lib.js';
+import { createPortal } from 'react-dom';
+import { LOGO_URL, SLOGAN, aplicarPrefs, configurado, papelNome, permissoes, supabase } from './lib.js';
 import { useData } from './useData.js';
 import { Demandas } from './Demandas.jsx';
 import { Equipe } from './Equipe.jsx';
 import { Frotas } from './Frotas.jsx';
+import { Configuracoes } from './Configuracoes.jsx';
+import { Avatar } from './Avatar.jsx';
 
+// mostrar: quem vê a aba (a partir das permissões)
 const ABAS = [
-  { id: 'inicio', nome: 'Início', breve: 'Visão geral do grupo: faturamento, demandas críticas e indicadores das três empresas em uma tela.' },
-  { id: 'demandas', nome: 'Demandas' },
-  { id: 'equipes', nome: 'Equipes' },
-  { id: 'frotas', nome: 'Frotas' },
-  { id: 'financeiro', nome: 'Financeiro', breve: 'Contas a pagar e a receber das três empresas, com resultado por obra e por empresa.' },
-  { id: 'rh', nome: 'RH & Ponto', breve: 'Cadastro de funcionários, ponto diário e documentos.' },
-  { id: 'relatorios', nome: 'Relatórios de obra', breve: 'Formulários por etapa com fotos, no padrão exigido pela Help e pela Agplan.' },
-  { id: 'aquisicao', nome: 'Aquisição', breve: 'Canais e funis de aquisição, investimento e retorno por canal.' },
-  { id: 'config', nome: 'Configurações', breve: 'Usuários, acessos (CEO, gerente, financeiro, obra) e permissões.' },
+  { id: 'inicio', nome: 'Início', mostrar: (p) => p.verOperacao, breve: 'Visão geral do grupo: faturamento, demandas críticas e indicadores das três empresas em uma tela.' },
+  { id: 'demandas', nome: 'Demandas', mostrar: () => true },
+  { id: 'equipes', nome: 'Equipes', mostrar: (p) => p.gestao },
+  { id: 'frotas', nome: 'Frotas', mostrar: (p) => p.gestao },
+  { id: 'financeiro', nome: 'Financeiro', mostrar: (p) => p.verFinanceiro, breve: 'Contas a pagar e a receber das três empresas, com resultado por obra e por empresa.' },
+  { id: 'rh', nome: 'RH & Ponto', mostrar: (p) => p.gestao, breve: 'Cadastro de funcionários, ponto diário e documentos.' },
+  { id: 'relatorios', nome: 'Relatórios de obra', mostrar: (p) => p.verOperacao, breve: 'Formulários por etapa com fotos, no padrão exigido pela Help e pela Agplan.' },
+  { id: 'aquisicao', nome: 'Aquisição', mostrar: (p) => p.admin, breve: 'Canais e funis de aquisição, investimento e retorno por canal.' },
+  { id: 'config', nome: 'Configurações', mostrar: () => true },
 ];
 
 export function App() {
   const [sessao, setSessao] = useState(undefined);
 
   useEffect(() => {
+    aplicarPrefs(lerLocal('eql-prefs'));
     if (!configurado) return;
     supabase.auth.getSession().then(({ data }) => setSessao(data.session));
     const { data } = supabase.auth.onAuthStateChange((_e, s) => setSessao(s));
@@ -30,22 +35,47 @@ export function App() {
   if (!configurado) return <SemConfig />;
   if (sessao === undefined) return <div className="login"><p className="empty">Carregando…</p></div>;
   if (!sessao) return <Login />;
-  return <Painel email={sessao.user?.email} />;
+  return <Painel usuario={sessao.user} />;
 }
 
-function Painel({ email }) {
-  const [aba, setAba] = useState(() => localStorageGet('eql-aba') || 'demandas');
+function Painel({ usuario }) {
+  const [aba, setAba] = useState(() => lerLocal('eql-aba', false) || 'demandas');
   const [tv, setTv] = useState(false);
   const [toast, setToast] = useState(null);
   const avisar = useCallback((msg) => {
     setToast(msg);
     clearTimeout(window.__eqlToast);
-    window.__eqlToast = setTimeout(() => setToast(null), 4000);
+    window.__eqlToast = setTimeout(() => setToast(null), 4500);
   }, []);
-  const dados = useData(avisar);
-  const atual = ABAS.find((a) => a.id === aba) || ABAS[1];
+  const dados = useData(avisar, usuario.id);
+  const eu = dados.perfis.find((p) => p.id === usuario.id);
+  // Antes de rodar o SQL de acessos (sem tabela de perfis), todos continuam com acesso total.
+  const papel = eu?.papel || (dados.faltando.has('perfis') ? 'admin' : 'campo');
+  const pode = permissoes(papel);
+  const abas = ABAS.filter((a) => a.mostrar(pode));
+  const atual = abas.find((a) => a.id === aba) || abas.find((a) => a.id === 'demandas');
 
-  useEffect(() => { localStorageSet('eql-aba', aba); }, [aba]);
+  // preferências salvas no perfil valem em qualquer aparelho
+  const prefsPerfil = JSON.stringify(eu?.preferencias || {});
+  useEffect(() => {
+    const p = JSON.parse(prefsPerfil);
+    if (Object.keys(p).length) { aplicarPrefs(p); gravarLocal('eql-prefs', p); }
+  }, [prefsPerfil]);
+  // acompanha o tema do sistema quando a opção é "Automático"
+  useEffect(() => {
+    const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
+    const f = () => aplicarPrefs(lerLocal('eql-prefs'));
+    mq?.addEventListener?.('change', f);
+    return () => mq?.removeEventListener?.('change', f);
+  }, []);
+
+  const salvarPrefs = async (p) => {
+    aplicarPrefs(p);
+    gravarLocal('eql-prefs', p);
+    if (eu) await dados.atualizarPerfil(eu.id, { preferencias: p });
+  };
+
+  useEffect(() => { gravarLocal('eql-aba', aba, false); }, [aba]);
   useEffect(() => {
     document.body.classList.toggle('tv', tv);
     const sair = () => !document.fullscreenElement && setTv(false);
@@ -59,49 +89,51 @@ function Painel({ email }) {
         {!tv && (
           <nav className="sidebar" aria-label="Menu principal">
             <div className="brand">
-              <div className="brand-mark">EQL</div>
-              <div><div className="brand-name">EQL Group</div><div className="brand-sub">Gestão integrada</div></div>
+              <img className="logo" src={LOGO_URL} alt="EQL Group" />
+              <span className="brand-sub">{SLOGAN}</span>
             </div>
             <div className="nav">
-              {ABAS.map((a) => (
-                <button key={a.id} type="button" className={aba === a.id ? 'on' : ''} aria-current={aba === a.id ? 'page' : undefined}
+              {abas.map((a) => (
+                <button key={a.id} type="button" className={atual.id === a.id ? 'on' : ''} aria-current={atual.id === a.id ? 'page' : undefined}
                   onClick={() => setAba(a.id)}>
                   <span>{a.nome}</span>
                   {a.breve && <span className="soon">em breve</span>}
                 </button>
               ))}
             </div>
-            <div className="me">
-              <div className="avatar">{iniciais(email)}</div>
+            <button type="button" className="me" style={{ border: 0, textAlign: 'left', width: '100%' }} onClick={() => setAba('config')}>
+              <Avatar perfil={eu} nome={usuario.email} online />
               <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span className="me-email">{email}</span>
-                <button type="button" className="link-btn" style={{ alignSelf: 'flex-start' }} onClick={() => supabase.auth.signOut()}>Sair</button>
+                <span className="me-nome">{eu?.nome || usuario.email}</span>
+                <span className="me-email">{papelNome[papel]}</span>
               </div>
-            </div>
+            </button>
           </nav>
         )}
         <main className="main">
           {dados.carregando ? (
             <p className="empty">Carregando dados…</p>
-          ) : aba === 'demandas' ? (
-            <Demandas dados={dados} tv={tv} setTv={setTv} avisar={avisar} />
-          ) : aba === 'equipes' ? (
+          ) : atual.id === 'demandas' ? (
+            <Demandas dados={dados} tv={tv} setTv={setTv} avisar={avisar} pode={pode} />
+          ) : atual.id === 'equipes' ? (
             <Equipe dados={dados} />
-          ) : aba === 'frotas' ? (
+          ) : atual.id === 'frotas' ? (
             <Frotas dados={dados} />
+          ) : atual.id === 'config' ? (
+            <Configuracoes dados={dados} eu={eu} usuario={usuario} pode={pode} salvarPrefs={salvarPrefs} avisar={avisar} />
           ) : (
             <>
               <header className="head"><h1>{atual.nome}</h1></header>
               <section className="card placeholder">
                 <span className="tag">Módulo previsto</span>
                 <h2 style={{ fontSize: 22, fontWeight: 800 }}>{atual.nome}</h2>
-                <p style={{ color: '#4B5260', fontSize: 15, lineHeight: 1.6 }}>{atual.breve}</p>
+                <p>{atual.breve}</p>
               </section>
             </>
           )}
         </main>
       </div>
-      {toast && <div className="toast" role="status">{toast}</div>}
+      {toast && createPortal(<div className="toast" role="status">{toast}</div>, document.body)}
     </div>
   );
 }
@@ -122,8 +154,8 @@ function Login() {
     <div className="login">
       <form className="card" onSubmit={entrar}>
         <div className="brand" style={{ padding: 0 }}>
-          <div className="brand-mark">EQL</div>
-          <div><div className="brand-name">EQL Group</div><div className="brand-sub">Gestão integrada</div></div>
+          <img className="logo" src={LOGO_URL} alt="EQL Group" />
+          <span className="brand-sub">{SLOGAN}</span>
         </div>
         <h1 style={{ fontSize: 24, fontWeight: 800 }}>Entrar</h1>
         {erro && <div className="err" role="alert">{erro}</div>}
@@ -144,7 +176,7 @@ function SemConfig() {
     <div className="login">
       <div className="card">
         <h1 style={{ fontSize: 22, fontWeight: 800 }}>Falta ligar o banco de dados</h1>
-        <p style={{ color: '#4B5260', lineHeight: 1.6 }}>
+        <p className="note">
           Na Netlify, em <b>Site configuration → Environment variables</b>, crie <b>SUPABASE_URL</b> e <b>SUPABASE_ANON_KEY</b> com os valores do
           Supabase (Project Settings → API) e faça um novo deploy.
         </p>
@@ -153,5 +185,9 @@ function SemConfig() {
   );
 }
 
-function localStorageGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
-function localStorageSet(k, v) { try { localStorage.setItem(k, v); } catch { /* ignora */ } }
+function lerLocal(k, json = true) {
+  try { const v = localStorage.getItem(k); return json ? JSON.parse(v || 'null') : v; } catch { return null; }
+}
+function gravarLocal(k, v, json = true) {
+  try { localStorage.setItem(k, json ? JSON.stringify(v) : v); } catch { /* ignora */ }
+}

@@ -5,11 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>EQL Group</title>
   <meta name="theme-color" content="#F4F5F6">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%2316181D'/%3E%3Ctext x='32' y='40' font-family='Arial' font-weight='700' font-size='20' fill='%23D7F26A' text-anchor='middle'%3EEQL%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="https://eqlgroup.com.br/wp-content/uploads/2024/04/cropped-Favicon-270x270.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
+  <script>
+    // aplica tema e tamanho salvos antes de desenhar a tela (evita "piscar")
+    try {
+      var p = JSON.parse(localStorage.getItem('eql-prefs') || '{}') || {};
+      var escuro = p.tema === 'escuro' || ((!p.tema || p.tema === 'sistema') && matchMedia('(prefers-color-scheme: dark)').matches);
+      var r = document.documentElement;
+      r.dataset.tema = escuro ? 'escuro' : 'claro';
+      if (p.texto) r.dataset.texto = p.texto;
+      if (p.densidade) r.dataset.densidade = p.densidade;
+    } catch (e) {}
+  </script>
 </head>
 <body>
   <div id="root"></div>

@@ -3,7 +3,7 @@ import { EMPRESAS, faseNome, fmt, hoje, ehProducao, ordemGrupo, percentual, resu
 import { DemandaModal } from './DemandaModal.jsx';
 import { Agenda } from './Agenda.jsx';
 
-export function Demandas({ dados, tv, setTv, avisar }) {
+export function Demandas({ dados, tv, setTv, avisar, pode }) {
   const [filtro, setFiltro] = useState('todas');
   const [destaque, setDestaque] = useState(null); // filtro pelos cartões de números
   const [editando, setEditando] = useState(null);
@@ -67,7 +67,7 @@ export function Demandas({ dados, tv, setTv, avisar }) {
           ) : (
             <>
               <button type="button" className="pill ghost" onClick={entrarTv}>Modo TV</button>
-              <button type="button" className="pill lime" onClick={() => novaDemanda()}>+ Nova demanda</button>
+              {pode.gestao && <button type="button" className="pill lime" onClick={() => novaDemanda()}>+ Nova demanda</button>}
             </>
           )}
         </div>
@@ -75,7 +75,7 @@ export function Demandas({ dados, tv, setTv, avisar }) {
 
       <div className="stats">
         {stats.map((s) => (
-          <button key={s.rotulo} type="button" className="stat" style={{ background: s.cor, outline: destaque === s.id && s.id ? '3px solid #16181D' : 'none' }}
+          <button key={s.rotulo} type="button" className={'stat' + (destaque === s.id && s.id ? ' on' : '')} style={{ background: s.cor }}
             aria-pressed={destaque === s.id && !!s.id}
             onClick={() => setDestaque(s.id && destaque !== s.id ? s.id : null)}>
             <span className="stat-label">{s.rotulo}</span>
@@ -95,24 +95,25 @@ export function Demandas({ dados, tv, setTv, avisar }) {
             {c.grupos.map((g) => (
               <div key={g.nome} className="group">
                 <span className="group-name">{g.nome}</span>
-                {g.itens.map((d) => <CartaoDemanda key={d.id} d={d} dia={dia} onAbrir={() => !tv && setEditando(d)} />)}
+                {g.itens.map((d) => <CartaoDemanda key={d.id} d={d} dia={dia} onAbrir={!tv && pode.editarAndamento ? () => setEditando(d) : null} />)}
               </div>
             ))}
             {!c.total && <p className="empty">{destaque ? 'Nada neste filtro.' : 'Nenhuma demanda.'}</p>}
-            {!tv && <button type="button" className="add-line" onClick={() => novaDemanda(c.id)}>+ Adicionar em {c.curto}</button>}
+            {!tv && pode.gestao && <button type="button" className="add-line" onClick={() => novaDemanda(c.id)}>+ Adicionar em {c.curto}</button>}
           </section>
         ))}
       </div>
 
       {!tv && (
-        <Agenda demandas={visiveis} dados={dados} avisar={avisar} />
+        pode.verOperacao && <Agenda demandas={visiveis} dados={dados} avisar={avisar} podeEditar={pode.gestao} />
       )}
 
-      {!tv && <Arquivadas demandas={dados.demandas.filter((d) => d.arquivada)} onAbrir={setEditando} />}
+      {!tv && pode.gestao && <Arquivadas demandas={dados.demandas.filter((d) => d.arquivada)} onAbrir={setEditando} />}
 
       {editando && (
         <DemandaModal inicial={editando} grupos={grupos} onFechar={() => setEditando(null)}
-          onSalvar={dados.salvarDemanda} onExcluir={dados.excluirDemanda} />
+          onSalvar={dados.salvarDemanda} onExcluir={dados.excluirDemanda}
+          limitado={!pode.gestao} perfis={dados.perfis} />
       )}
     </>
   );
@@ -126,7 +127,7 @@ function CartaoDemanda({ d, dia, onAbrir }) {
     ? resumoProducao(d, dia)
     : [faseNome[d.fase], d.descricao, d.inicio && d.inicio > dia ? 'começa ' + fmt(d.inicio) : null].filter(Boolean).join(' · ');
   return (
-    <button type="button" className={'item sit-' + sit} onClick={onAbrir} aria-label={`${d.nome}, ${prazo}, ${pct}%`}>
+    <button type="button" className={'item sit-' + sit + (onAbrir ? '' : ' so-ver')} onClick={onAbrir || undefined} aria-label={`${d.nome}, ${prazo}, ${pct}%`}>
       <span className="item-top">
         <span className="item-name">{d.nome}</span>
         <span className={'due ' + sit}>{prazo}</span>

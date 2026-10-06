@@ -43,7 +43,19 @@ Se o app abrir com a mensagem “Falta ligar o banco de dados”, as variáveis 
 ## Como atualizar depois
 - **Dados** (obras, prazos, %, funcionários, agenda): pelo próprio app.
 - **Funcionalidades**: pedir ao Claude → ele envia o código para o GitHub → a Netlify publica sozinha.
-- Quando uma mudança precisar de campo novo no banco, vem um arquivo `supabase/03_….sql` para rodar no SQL Editor. Ele só acrescenta, não apaga nada.
+- Quando uma mudança precisar de campo novo no banco, vem um arquivo numerado em `supabase/` para rodar uma vez no SQL Editor. Ele só acrescenta, não apaga nada.
+  - `03_folgas_e_frotas.sql`: folgas/férias, veículos e agenda dos veículos
+  - `04_acessos_e_perfis.sql`: acessos (administrador, gerente, campo, cliente), fotos, último acesso e preferências
+
+## Acessos
+| Tipo | Pode |
+|---|---|
+| Administrador | tudo, inclusive mudar o acesso dos outros (aba Configurações) |
+| Gerente | demandas, agenda, equipes e frotas |
+| Campo | vê a operação e atualiza andamento/fase/produção das demandas |
+| Cliente | vê só as demandas do grupo dele (ex.: Help) |
+
+Novo login: Supabase → Authentication → Users → Add user. Ele entra como **Campo**; o administrador muda o tipo em Configurações.
 
 ## Estrutura
 ```

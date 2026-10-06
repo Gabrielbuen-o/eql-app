@@ -74,7 +74,7 @@ export function Equipe({ dados }) {
                 </div>
                 {ed ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <button type="button" className="mini" style={{ background: '#D7F26A' }} onClick={salvarEdicao}>Salvar</button>
+                    <button type="button" className="mini lime" onClick={salvarEdicao}>Salvar</button>
                     <button type="button" className="mini" onClick={() => setEditando(null)}>Cancelar</button>
                   </div>
                 ) : (
@@ -97,7 +97,7 @@ export function Equipe({ dados }) {
           <div className="people">
             {inativos.map((f) => (
               <div key={f.id} className="person">
-                <div className="avatar" style={{ background: '#E3E6EA' }}>{iniciais(f.nome)}</div>
+                <div className="avatar" style={{ background: 'var(--chip)' }}>{iniciais(f.nome)}</div>
                 <div className="info"><span className="nm">{f.nome}</span></div>
                 <button type="button" className="mini" onClick={() => dados.atualizarFuncionario(f.id, { ativo: true })}>Reativar</button>
               </div>
@@ -169,7 +169,7 @@ function Ausencias({ dados, ativos }) {
         <div className="people">
           {periodos.map((p) => (
             <div key={p.ids[0]} className="person">
-              <div className="avatar" style={{ background: p.tipo === 'ferias' ? 'var(--yellow)' : '#E6E8EC' }}>{iniciais(nome[p.func])}</div>
+              <div className="avatar" style={{ background: p.tipo === 'ferias' ? 'var(--yellow)' : 'var(--chip)' }}>{iniciais(nome[p.func])}</div>
               <div className="info">
                 <span className="nm">{nome[p.func] || '?'}</span>
                 <span className="sub">{p.tipo === 'ferias' ? 'Férias' : 'Folga'} · {p.de === p.ate ? fmt(p.de) : fmt(p.de) + ' a ' + fmt(p.ate)}</span>

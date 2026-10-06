@@ -9,13 +9,16 @@ const TABELAS = {
   ausencias: ['dia', true, true],
   veiculos: ['ordem', true, false],
   veiculo_alocacoes: ['dia', true, true],
+  perfis: ['nome', true, false],
 };
 const NOMES = Object.keys(TABELAS);
 
 // Carrega as tabelas, escuta mudanças em tempo real e expõe as ações.
-export function useData(avisar) {
+export function useData(avisar, userId) {
   const [db, setDb] = useState(() => Object.fromEntries(NOMES.map((t) => [t, []])));
   const [carregando, setCarregando] = useState(true);
+  const [online, setOnline] = useState(() => new Set());
+  const [faltando, setFaltando] = useState(() => new Set()); // tabelas que ainda não existem no banco
   const avisarRef = useRef(avisar);
   avisarRef.current = avisar;
   const dbRef = useRef(db);
@@ -30,11 +33,13 @@ export function useData(avisar) {
     const { data, error } = await q;
     if (error) {
       const faltaTabela = /does not exist|schema cache|Could not find/i.test(error.message);
+      if (faltaTabela) setFaltando((f) => new Set(f).add(t));
       avisarRef.current?.(faltaTabela
-        ? 'Falta atualizar o banco: rode o arquivo 03_folgas_e_frotas.sql no Supabase.'
+        ? 'Falta atualizar o banco: rode no Supabase o arquivo SQL mais recente da pasta supabase/.'
         : 'Erro ao carregar: ' + error.message);
       return;
     }
+    setFaltando((f) => { if (!f.has(t)) return f; const n = new Set(f); n.delete(t); return n; });
     setTabela(t, data || []);
   }, []);
 
@@ -48,6 +53,18 @@ export function useData(avisar) {
     document.addEventListener('visibilitychange', vis);
     return () => { vivo = false; supabase.removeChannel(canal); document.removeEventListener('visibilitychange', vis); };
   }, [recarregar]);
+
+  // Quem está online agora (presença em tempo real) + registro do último acesso
+  useEffect(() => {
+    if (!userId) return;
+    const pres = supabase.channel('eql-online', { config: { presence: { key: userId } } });
+    pres.on('presence', { event: 'sync' }, () => setOnline(new Set(Object.keys(pres.presenceState()))));
+    pres.subscribe((status) => { if (status === 'SUBSCRIBED') pres.track({ desde: new Date().toISOString() }); });
+    const marcar = () => supabase.from('perfis').update({ ultimo_acesso: new Date().toISOString() }).eq('id', userId).then(() => {});
+    marcar();
+    const t = setInterval(marcar, 120000);
+    return () => { clearInterval(t); supabase.removeChannel(pres); };
+  }, [userId]);
 
   const falhou = (error, t) => {
     if (!error) return false;
@@ -137,8 +154,24 @@ export function useData(avisar) {
   };
   const removerAusencia = (id) => apagar('ausencias', id);
 
+  // ---------- Perfis e fotos ----------
+  const atualizarPerfil = async (id, campos) => {
+    const ok = await atualizar('perfis', id, campos);
+    if (!ok) return false;
+    recarregar('perfis');
+    return true;
+  };
+  const enviarFoto = async (id, blob) => {
+    const caminho = `${id}/${Date.now()}.jpg`;
+    const { error } = await supabase.storage.from('fotos').upload(caminho, blob, { upsert: true, contentType: 'image/jpeg' });
+    if (error) { avisarRef.current?.('Não foi possível enviar a foto: ' + error.message); return false; }
+    const { data } = supabase.storage.from('fotos').getPublicUrl(caminho);
+    return atualizarPerfil(id, { foto_url: data.publicUrl });
+  };
+
   return {
-    ...db, carregando,
+    ...db, carregando, online, faltando,
+    atualizarPerfil, enviarFoto,
     salvarDemanda, excluirDemanda,
     adicionarFuncionario, atualizarFuncionario, salvarVeiculo,
     alocar, moverAlocacao, removerAlocacao, inserirAlocacoes,

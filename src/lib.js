@@ -9,7 +9,7 @@ export const supabase = configurado ? createClient(SUPABASE_URL, SUPABASE_ANON_K
 // ---------- Empresas, fases ----------
 export const EMPRESAS = [
   { id: 'engenharia', nome: 'EQL Engenharia', curto: 'Engenharia', cor: '#CFC8F5' },
-  { id: 'impermeabilizacao', nome: 'EQL Impermeabilização', curto: 'Impermeabilização', cor: '#B9D3F7' },
+  { id: 'impermeabilizacao', nome: 'EQL Impermeabilização', curto: 'Impermeabilização', cor: '#7DB4EC' },
   { id: 'eko', nome: 'EQL Eko', curto: 'Eko', cor: '#A9E4C3' },
 ];
 export const empresaPorId = Object.fromEntries(EMPRESAS.map((e) => [e.id, e]));
@@ -102,3 +102,65 @@ export function resumoProducao(d, dia = hoje()) {
 
 export const iniciais = (nome) =>
   (nome || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join('');
+
+// ---------- Identidade ----------
+export const LOGO_URL = 'https://eqlgroup.com.br/wp-content/uploads/2024/03/Logo-Preta.png';
+export const SLOGAN = 'Do concreto à entrega';
+
+// ---------- Acessos ----------
+export const PAPEIS = [
+  { id: 'admin', nome: 'Administrador', desc: 'Tudo, inclusive usuários e acessos' },
+  { id: 'gerente', nome: 'Gerente', desc: 'Demandas, agenda, equipes e frotas' },
+  { id: 'campo', nome: 'Campo', desc: 'Vê a operação e atualiza o andamento das demandas' },
+  { id: 'cliente', nome: 'Cliente', desc: 'Vê só as demandas do seu grupo (ex.: Help)' },
+];
+export const papelNome = Object.fromEntries(PAPEIS.map((p) => [p.id, p.nome]));
+
+export function permissoes(papel) {
+  const gestao = papel === 'admin' || papel === 'gerente';
+  return {
+    papel,
+    admin: papel === 'admin',
+    gestao,                                   // cria/apaga demandas, mexe na agenda, equipes, frotas
+    editarAndamento: gestao || papel === 'campo',
+    verOperacao: papel !== 'cliente',        // agenda, equipes, frotas
+    verFinanceiro: papel === 'admin',
+  };
+}
+
+// ---------- Preferências de uso ----------
+export const PREFS_PADRAO = { tema: 'sistema', texto: 'm', densidade: 'confortavel', idioma: 'pt-BR' };
+
+export function aplicarPrefs(p) {
+  const prefs = { ...PREFS_PADRAO, ...(p || {}) };
+  const escuro = prefs.tema === 'escuro' ||
+    (prefs.tema === 'sistema' && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
+  const r = document.documentElement;
+  r.dataset.tema = escuro ? 'escuro' : 'claro';
+  r.dataset.texto = prefs.texto;
+  r.dataset.densidade = prefs.densidade;
+  r.lang = prefs.idioma;
+  return prefs;
+}
+
+// "agora", "há 5 min", "há 2 h", "ontem", "12/10"
+export function tempoRelativo(isoTs) {
+  if (!isoTs) return 'nunca';
+  const s = (Date.now() - new Date(isoTs).getTime()) / 1000;
+  if (s < 60) return 'agora';
+  if (s < 3600) return `há ${Math.floor(s / 60)} min`;
+  if (s < 86400) return `há ${Math.floor(s / 3600)} h`;
+  if (s < 172800) return 'ontem';
+  if (s < 7 * 86400) return `há ${Math.floor(s / 86400)} dias`;
+  return new Date(isoTs).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+// Reduz a foto para no máximo 320px antes de enviar (fica leve)
+export async function reduzirImagem(arquivo, max = 320) {
+  const bmp = await createImageBitmap(arquivo);
+  const lado = Math.min(bmp.width, bmp.height); // recorte quadrado central
+  const c = document.createElement('canvas');
+  c.width = c.height = Math.min(max, lado);
+  c.getContext('2d').drawImage(bmp, (bmp.width - lado) / 2, (bmp.height - lado) / 2, lado, lado, 0, 0, c.width, c.height);
+  return new Promise((ok) => c.toBlob(ok, 'image/jpeg', 0.85));
+}
