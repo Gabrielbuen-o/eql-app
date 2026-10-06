@@ -43,7 +43,7 @@ export function App() {
 }
 
 function Painel({ usuario }) {
-  const [aba, setAba] = useState(() => lerLocal('eql-aba', false) || 'demandas');
+  const [aba, setAba] = useState('inicio'); // o app sempre abre no Início
   const [tv, setTv] = useState(false);
   const [toast, setToast] = useState(null);
   const avisar = useCallback((msg) => {
@@ -59,7 +59,7 @@ function Painel({ usuario }) {
   const custos = useCustos(dados, pode.admin && !dados.carregando);
   const abas = ABAS.filter((a) => a.mostrar(pode));
   const [abaPrincipal, subAba] = aba.split('/');
-  const atual = abas.find((a) => a.id === abaPrincipal) || abas.find((a) => a.id === 'demandas');
+  const atual = abas.find((a) => a.id === abaPrincipal) || abas.find((a) => a.id === 'demandas'); // cliente não tem Início: cai em Demandas
   const sub = atual.sub?.find((x) => x.id === subAba && x.mostrar(pode))?.id || null;
 
   // preferências salvas no perfil valem em qualquer aparelho
@@ -82,7 +82,6 @@ function Painel({ usuario }) {
     if (eu) await dados.atualizarPerfil(eu.id, { preferencias: p });
   };
 
-  useEffect(() => { gravarLocal('eql-aba', aba, false); }, [aba]);
   useEffect(() => {
     document.body.classList.toggle('tv', tv);
     const sair = () => !document.fullscreenElement && setTv(false);
