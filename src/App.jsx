@@ -22,8 +22,9 @@ const ABAS = [
   { id: 'demandas', nome: 'Demandas', mostrar: () => true,
     sub: [{ id: 'obras', nome: 'Obras', mostrar: () => true },
       { id: 'fabrica', nome: 'Fábrica', mostrar: (p) => p.verOperacao }] },
-  { id: 'calendario', nome: 'Calendário de obras', mostrar: (p) => p.verOperacao },
-  { id: 'relatorios', nome: 'Relatórios de obra', mostrar: (p) => p.gestao },
+  { id: 'calendario', nome: 'Calendário de obras', mostrar: (p) => p.verOperacao,
+    sub: [{ id: 'agenda', nome: 'Agenda', mostrar: () => true },
+      { id: 'relatorios', nome: 'Relatórios de obra', mostrar: (p) => p.gestao }] },
   { id: 'equipes', nome: 'Equipes', mostrar: (p) => p.gestao },
   { id: 'frotas', nome: 'Frotas', mostrar: (p) => p.gestao },
   { id: 'financeiro', nome: 'Financeiro', mostrar: (p) => p.verFinanceiro },
@@ -162,6 +163,8 @@ function Painel({ usuario }) {
             <Fabrica dados={dados} tv={tv} setTv={setTv} pode={pode} custos={custos.porDemanda} />
           ) : atual.id === 'demandas' ? (
             <Demandas key="obras" modo="obras" dados={dados} tv={tv} setTv={setTv} avisar={avisar} pode={pode} custos={custos.porDemanda} />
+          ) : atual.id === 'calendario' && sub === 'relatorios' ? (
+            <Relatorios dados={dados} pode={pode} />
           ) : atual.id === 'calendario' ? (
             <CalendarioObras dados={dados} tv={tv} setTv={setTv} avisar={avisar} pode={pode} />
           ) : atual.id === 'equipes' ? (
@@ -170,8 +173,6 @@ function Painel({ usuario }) {
             <Frotas dados={dados} />
           ) : atual.id === 'inicio' ? (
             <Inicio dados={dados} eu={eu} irPara={irPara} tv={tv} setTv={setTv} pode={pode} porDemanda={custos.porDemanda} />
-          ) : atual.id === 'relatorios' ? (
-            <Relatorios dados={dados} pode={pode} />
           ) : atual.id === 'financeiro' ? (
             <Resultados dados={dados} porDemanda={custos.porDemanda} />
           ) : atual.id === 'config' ? (

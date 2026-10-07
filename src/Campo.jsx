@@ -4,7 +4,8 @@ import {
   EMPRESAS, FOTOS_MAX, FOTOS_MIN, TIPOS_RELATORIO, dataLonga, empresaPorId, hoje, mensagemDoDia,
   saudacao, supabase, tipoRelatorio,
 } from './lib.js';
-import { VIDEO_MAX_SEG, comprimirFoto, conferirVideo, tamanho } from './midia.js';
+import { VIDEO_MAX_SEG, carimbar, comprimirFoto, conferirVideo, coordTexto, lerExif, linkMapa, tamanho } from './midia.js';
+import { CameraContinua } from './Camera.jsx';
 
 // App do pessoal de campo: uma tela só — saudação, obra do dia e "Novo relatório".
 export function AppCampo({ dados, eu, avisar }) {
@@ -187,6 +188,25 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
   const [progresso, setProgresso] = useState({ feito: 0, total: 0 });
   const idRef = useRef(null);
   const camRef = useRef(null), galRef = useRef(null), vidRef = useRef(null);
+  const [camAberta, setCamAberta] = useState(false);
+
+  // localização (vai no carimbo das fotos tiradas na hora). No escritório não usa.
+  const posRef = useRef(null);
+  const [geo, setGeo] = useState(escritorio ? 'off' : 'buscando'); // buscando | ok | negado | indisponivel | off
+  const [precisao, setPrecisao] = useState(null);
+  const [tentativaGeo, setTentativaGeo] = useState(0);
+  useEffect(() => {
+    if (escritorio || etapa === 'ok') return undefined;
+    if (!navigator.geolocation) { setGeo('indisponivel'); return undefined; }
+    setGeo((g) => (g === 'ok' ? g : 'buscando'));
+    const id = navigator.geolocation.watchPosition(
+      (p) => { posRef.current = { lat: p.coords.latitude, lon: p.coords.longitude, prec: p.coords.accuracy, ts: Date.now() }; setPrecisao(p.coords.accuracy); setGeo('ok'); },
+      (e) => setGeo(e.code === 1 ? 'negado' : 'indisponivel'),
+      { enableHighAccuracy: true, maximumAge: 30000, timeout: 20000 },
+    );
+    return () => navigator.geolocation.clearWatch(id);
+  }, [escritorio, etapa === 'ok', tentativaGeo]); // eslint-disable-line react-hooks/exhaustive-deps
+  const posAgora = () => (posRef.current && Date.now() - posRef.current.ts < 5 * 60000 ? posRef.current : null);
 
   // libera as pré-visualizações ao sair
   useEffect(() => () => { itens.forEach((i) => URL.revokeObjectURL(i.preview)); if (video) URL.revokeObjectURL(video.preview); }, []); // eslint-disable-line
@@ -203,19 +223,51 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   const obra = dados.demandas.find((d) => d.id === demandaId);
 
-  const adicionarFotos = async (lista) => {
-    const arquivos = [...lista].filter((f) => f.type.startsWith('image/') || /\.(jpe?g|png|heic|heif|webp)$/i.test(f.name));
+  // origem: 'galeria' (lê a hora e o GPS originais da foto, se tiver) ou 'camera' (hora e local de agora)
+  const adicionarFotos = async (lista, origem = 'galeria') => {
+    const arquivos = [...lista].filter((f) => f.type.startsWith('image/') || /\.(jpe?g|png|heic|heif|webp)$/i.test(f.name || ''));
     const vagas = FOTOS_MAX - itens.length - processando;
     if (arquivos.length > vagas) setErro(`O máximo é ${FOTOS_MAX} fotos. ${arquivos.length - Math.max(0, vagas)} ficaram de fora.`);
     else setErro('');
     for (const arq of arquivos.slice(0, Math.max(0, vagas))) {
       setProcessando((n) => n + 1);
       try {
+        let meta;
+        if (origem === 'camera') {
+          const p = posAgora();
+          meta = { origem, quando: new Date(), lat: p?.lat, lon: p?.lon, prec: p?.prec };
+        } else {
+          const ex = await lerExif(arq);
+          meta = { origem, quando: ex.quando || null, lat: ex.lat, lon: ex.lon };
+        }
         const c = await comprimirFoto(arq); // uma por vez: não pesa a memória do celular
-        setItens((xs) => [...xs, { key: Math.random().toString(36).slice(2), ...c, preview: URL.createObjectURL(c.miniatura) }]);
+        setItens((xs) => [...xs, { key: Math.random().toString(36).slice(2), ...c, ...meta, preview: URL.createObjectURL(c.miniatura) }]);
       } catch (e) { setErro(e.message); }
       setProcessando((n) => n - 1);
     }
+  };
+  // foto tirada pela câmera do app
+  const fotoDaCamera = async (blob, quando) => {
+    if (itens.length + processando >= FOTOS_MAX) return;
+    const p = posAgora();
+    setProcessando((n) => n + 1);
+    try {
+      const c = await comprimirFoto(blob);
+      setItens((xs) => [...xs, { key: Math.random().toString(36).slice(2), ...c, origem: 'camera', quando, lat: p?.lat, lon: p?.lon, prec: p?.prec, preview: URL.createObjectURL(c.miniatura) }]);
+    } catch (e) { setErro(e.message); }
+    setProcessando((n) => n - 1);
+  };
+  const quem = dados.funcionarios.find((f) => f.id === funcId)?.nome;
+  const linhasCarimbo = (it) => {
+    const q = it.quando ? new Date(it.quando) : null;
+    const quandoTxt = q
+      ? `${q.toLocaleDateString('pt-BR')} ${q.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+      : escritorio ? `Relatório de ${new Date(dia + 'T12:00').toLocaleDateString('pt-BR')}` : 'Foto da galeria · sem horário original';
+    return [
+      quandoTxt,
+      [obra?.nome, quem || (escritorio ? 'lançado pelo escritório' : null), tipoRelatorio[tipo]?.nome].filter(Boolean).join(' · '),
+      it.lat != null ? `Local: ${coordTexto(it.lat, it.lon, it.prec)}` : null,
+    ].filter(Boolean);
   };
   const tirar = (key) => setItens((xs) => xs.filter((x) => { if (x.key === key) URL.revokeObjectURL(x.preview); return x.key !== key; }));
 
@@ -243,9 +295,11 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
     itens.forEach((it, i) => {
       if (!it.caminho) tarefas.push(async () => {
         const n = String(i + 1).padStart(2, '0');
-        const a = await dados.enviarArquivo(`${base}/foto-${n}.jpg`, it.foto, 'image/jpeg');
+        const final = await carimbar(it.base, linhasCarimbo(it)); // data, hora, obra, nome e local na própria foto
+        it.bytes = final.foto.size;
+        const a = await dados.enviarArquivo(`${base}/foto-${n}.jpg`, final.foto, 'image/jpeg');
         if (!a.ok) throw new Error(a.erro);
-        const b = await dados.enviarArquivo(`${base}/foto-${n}-mini.jpg`, it.miniatura, 'image/jpeg');
+        const b = await dados.enviarArquivo(`${base}/foto-${n}-mini.jpg`, final.miniatura, 'image/jpeg');
         if (!b.ok) throw new Error(b.erro);
         it.caminho = `${base}/foto-${n}.jpg`; it.mini = `${base}/foto-${n}-mini.jpg`;
       });
@@ -275,7 +329,11 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
       return;
     }
     const arquivos = [
-      ...itens.map((it) => ({ tipo: 'foto', caminho: it.caminho, miniatura: it.mini, bytes: it.foto.size })),
+      ...itens.map((it) => ({
+        tipo: 'foto', caminho: it.caminho, miniatura: it.mini, bytes: it.bytes, origem: it.origem,
+        quando: it.quando ? new Date(it.quando).toISOString() : null,
+        ...(it.lat != null ? { lat: it.lat, lon: it.lon, precisao: it.prec ? Math.round(it.prec) : null } : {}),
+      })),
       ...(video ? [{ tipo: 'video', caminho: video.caminho, bytes: video.arquivo.size, duracao: video.duracao }] : []),
     ];
     const ok = await dados.salvarRelatorio({
@@ -290,7 +348,7 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
     if (etapa === 'form' && (itens.length || video) && !window.confirm('Descartar este relatório?')) return;
     onFechar();
   };
-  const pesoTotal = itens.reduce((s, i) => s + i.foto.size, 0) + (video?.arquivo.size || 0);
+  const pesoTotal = itens.reduce((s, i) => s + i.base.size * 0.8, 0) + (video?.arquivo.size || 0);
   const pesoOriginal = itens.reduce((s, i) => s + i.original, 0) + (video?.arquivo.size || 0);
 
   return createPortal(
@@ -349,15 +407,23 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
             <span className={faltam ? 'falta' : 'okk'}>{itens.length} {itens.length === 1 ? 'foto' : 'fotos'} · mín. {minimo}, máx. {FOTOS_MAX}</span>
           </div>
           <div className="campo-botoes">
-            <button type="button" className="campo-add" onClick={() => camRef.current?.click()} disabled={itens.length >= FOTOS_MAX}>
-              <b>Tirar foto</b><span>abre a câmera</span>
+            <button type="button" className="campo-add" onClick={() => setCamAberta(true)} disabled={itens.length >= FOTOS_MAX}>
+              <b>Tirar fotos</b><span>várias seguidas</span>
             </button>
             <button type="button" className="campo-add" onClick={() => galRef.current?.click()} disabled={itens.length >= FOTOS_MAX}>
               <b>Galeria</b><span>escolher várias</span>
             </button>
           </div>
           <input ref={camRef} type="file" accept="image/*" capture="environment" hidden
-            onChange={(e) => { adicionarFotos(e.target.files); e.target.value = ''; }} />
+            onChange={(e) => { adicionarFotos(e.target.files, 'camera'); e.target.value = ''; }} />
+          {!escritorio && (
+            <div className={'campo-geo ' + geo}>
+              {geo === 'ok' ? <>Localização ligada{precisao ? ` · ±${Math.round(precisao)} m` : ''}</>
+                : geo === 'buscando' ? 'Buscando a localização…'
+                : geo === 'negado' ? <>Localização bloqueada: as fotos vão sem o local. <button type="button" className="link-btn" onClick={() => setTentativaGeo((n) => n + 1)}>Tentar de novo</button></>
+                : 'Localização indisponível neste celular: as fotos vão sem o local.'}
+            </div>
+          )}
           <input ref={galRef} type="file" accept="image/*" multiple hidden
             onChange={(e) => { adicionarFotos(e.target.files); e.target.value = ''; }} />
 
@@ -366,6 +432,7 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
               {itens.map((it, i) => (
                 <div key={it.key} className="campo-mini">
                   <img src={it.preview} alt={`Foto ${i + 1}`} />
+                  {it.quando && <span className="campo-mini-hora">{new Date(it.quando).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>}
                   <button type="button" aria-label={`Tirar foto ${i + 1}`} onClick={() => tirar(it.key)}>×</button>
                 </div>
               ))}
@@ -401,6 +468,11 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
             </button>
           </div>
         </div>
+      )}
+
+      {camAberta && (
+        <CameraContinua previas={itens} max={FOTOS_MAX} onFoto={fotoDaCamera} onFechar={() => setCamAberta(false)}
+          onUsarNativa={() => { setCamAberta(false); camRef.current?.click(); }} />
       )}
 
       {etapa === 'enviando' && (
@@ -463,6 +535,7 @@ export function VerRelatorio({ r, dados, onFechar, onApagar }) {
           {fotos.map((a, i) => (
             <button key={a.caminho} type="button" className="rel-foto" onClick={() => setFoco(i)} aria-label={`Abrir foto ${i + 1}`}>
               <img src={dados.urlArquivo(a.miniatura || a.caminho)} alt="" loading="lazy" />
+              {a.quando && <span className="rel-foto-hora">{hora(a.quando)}</span>}
             </button>
           ))}
         </div>
@@ -486,7 +559,8 @@ export function VerRelatorio({ r, dados, onFechar, onApagar }) {
           <img src={dados.urlArquivo(fotos[foco].caminho)} alt={`Foto ${foco + 1} de ${fotos.length}`} />
           <div className="rel-luz-barra">
             <button type="button" className="pill" disabled={foco === 0} onClick={() => setFoco(foco - 1)}>‹</button>
-            <span>{foco + 1} / {fotos.length}</span>
+            <span>{foco + 1} / {fotos.length}{fotos[foco].quando ? ` · ${new Date(fotos[foco].quando).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}</span>
+            {fotos[foco].lat != null && <a className="pill" href={linkMapa(fotos[foco].lat, fotos[foco].lon)} target="_blank" rel="noreferrer">Ver no mapa</a>}
             <button type="button" className="pill" disabled={foco === fotos.length - 1} onClick={() => setFoco(foco + 1)}>›</button>
             <a className="pill" href={dados.urlArquivo(fotos[foco].caminho)} target="_blank" rel="noreferrer">Abrir</a>
             <button type="button" className="pill" onClick={() => setFoco(null)}>Fechar</button>
