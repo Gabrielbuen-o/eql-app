@@ -75,8 +75,10 @@ function Painel({ usuario }) {
   const prefsPerfil = JSON.stringify(eu?.preferencias || {});
   useEffect(() => {
     const p = JSON.parse(prefsPerfil);
+    // pessoal de campo: sempre o tema claro, em qualquer aparelho
+    if (eu?.papel === 'campo') { const claro = { ...(lerLocal('eql-prefs') || {}), ...p, tema: 'claro' }; aplicarPrefs(claro); gravarLocal('eql-prefs', claro); return; }
     if (Object.keys(p).length) { aplicarPrefs(p); gravarLocal('eql-prefs', p); }
-  }, [prefsPerfil]);
+  }, [prefsPerfil, eu?.papel]);
 
   // navega para uma aba (e, em Demandas, já com um filtro dos cartões)
   const irPara = (destino, filtro) => {

@@ -5,10 +5,12 @@ import {
   saudacao, supabase, tipoRelatorio,
 } from './lib.js';
 import { VIDEO_MAX_SEG, carimbar, comprimirFoto, conferirVideo, coordTexto, lerExif, linkMapa, tamanho } from './midia.js';
-import { CameraContinua } from './Camera.jsx';
+import { CameraContinua, GravadorVideo } from './Camera.jsx';
 
 // App do pessoal de campo: uma tela só — saudação, obra do dia e "Novo relatório".
 export function AppCampo({ dados, eu, avisar }) {
+  // campo é sempre no tema claro
+  useEffect(() => { document.documentElement.dataset.tema = 'claro'; }, []);
   const dia = hoje();
   const chaveLocal = 'eql-campo-funcionario';
   const [escolhido, setEscolhido] = useState(() => { try { return localStorage.getItem(chaveLocal) || ''; } catch { return ''; } });
@@ -189,6 +191,7 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
   const idRef = useRef(null);
   const camRef = useRef(null), galRef = useRef(null), vidRef = useRef(null);
   const [camAberta, setCamAberta] = useState(false);
+  const [gravando, setGravando] = useState(false);
 
   // localização (vai no carimbo das fotos tiradas na hora). No escritório não usa.
   const posRef = useRef(null);
@@ -278,7 +281,14 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
       if (video) URL.revokeObjectURL(video.preview);
       setVideo({ arquivo: arq, duracao, preview: URL.createObjectURL(arq) });
       setErro('');
-    } catch (e) { setErro(e.message); }
+    } catch (e) { setErro(e.message + ' Dica: use "Gravar vídeo", que já sai leve.'); }
+  };
+  const videoGravado = (g) => {
+    setGravando(false);
+    if (!g) return;
+    if (video) URL.revokeObjectURL(video.preview);
+    setVideo({ arquivo: g.blob, duracao: g.duracao, preview: g.url, ext: g.ext, mime: g.mime });
+    setErro('');
   };
 
   const faltam = Math.max(0, minimo - itens.length);
@@ -305,8 +315,8 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
       });
     });
     if (video && !video.caminho) tarefas.push(async () => {
-      const ext = (video.arquivo.name.split('.').pop() || 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '') || 'mp4';
-      const tipoMime = video.arquivo.type || (ext === 'mov' ? 'video/quicktime' : 'video/mp4');
+      const ext = video.ext || ((video.arquivo.name || '').split('.').pop() || 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '') || 'mp4';
+      const tipoMime = video.mime || video.arquivo.type || (ext === 'mov' ? 'video/quicktime' : ext === 'webm' ? 'video/webm' : 'video/mp4');
       const a = await dados.enviarArquivo(`${base}/video.${ext}`, video.arquivo, tipoMime);
       if (!a.ok) throw new Error(a.erro);
       video.caminho = `${base}/video.${ext}`;
@@ -443,14 +453,19 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
           <div className="campo-video">
             {video ? (
               <div className="campo-video-item">
-                <video src={video.preview} muted playsInline preload="metadata" />
+                <video src={video.preview + "#t=0.1"} muted playsInline preload="metadata" />
                 <span>Vídeo{video.duracao ? ` · ${video.duracao}s` : ''} · {tamanho(video.arquivo.size)}</span>
                 <button type="button" className="link-btn" onClick={() => { URL.revokeObjectURL(video.preview); setVideo(null); }}>Tirar</button>
               </div>
             ) : (
-              <button type="button" className="campo-add fino" onClick={() => vidRef.current?.click()}>
-                <b>+ Vídeo (opcional)</b><span>até {VIDEO_MAX_SEG} segundos</span>
-              </button>
+              <div className="campo-video-botoes">
+                <button type="button" className="campo-add fino" onClick={() => setGravando(true)}>
+                  <b>Gravar vídeo</b><span>opcional · até {VIDEO_MAX_SEG} s</span>
+                </button>
+                <button type="button" className="campo-add fino" onClick={() => vidRef.current?.click()}>
+                  <b>Vídeo da galeria</b><span>até {VIDEO_MAX_SEG} s</span>
+                </button>
+              </div>
             )}
             <input ref={vidRef} type="file" accept="video/*" hidden onChange={(e) => { escolherVideo(e.target.files[0]); e.target.value = ''; }} />
           </div>
@@ -470,6 +485,10 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
         </div>
       )}
 
+      {gravando && (
+        <GravadorVideo max={VIDEO_MAX_SEG} onPronto={videoGravado} onFechar={() => setGravando(false)}
+          onUsarNativa={() => { setGravando(false); vidRef.current?.click(); }} />
+      )}
       {camAberta && (
         <CameraContinua previas={itens} max={FOTOS_MAX} onFoto={fotoDaCamera} onFechar={() => setCamAberta(false)}
           onUsarNativa={() => { setCamAberta(false); camRef.current?.click(); }} />
