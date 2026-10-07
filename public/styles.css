@@ -1067,3 +1067,29 @@ button.hoje-tile:hover { box-shadow: inset 0 0 0 2px var(--brand); }
 .cam-barra span { display: block; height: 100%; background: #E53935; }
 .cam-info { text-align: center; font-size: 13px; font-weight: 700; opacity: .85; }
 .campo-video-botoes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cam-carimbo { position: absolute; left: 12px; bottom: 16px; display: flex; flex-direction: column; gap: 2px; text-shadow: 0 1px 3px rgba(0, 0, 0, .8); font-size: 12px; font-weight: 600; pointer-events: none; }
+.cam-carimbo .l1 { font-size: 16px; font-weight: 800; }
+
+/* ---------- relatório salvo em tempo real ---------- */
+.campo-salvo { font-size: 13px; font-weight: 600; color: var(--brand-text); background: var(--mint); border-radius: 12px; padding: 8px 12px; }
+.campo-obra-fixa { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; background: var(--card); border-radius: 14px; padding: 10px 14px; }
+.campo-obra-fixa strong { font-size: 18px; font-weight: 800; }
+.campo-mini-nuvem { position: absolute; right: 4px; bottom: 4px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 800; color: #fff; background: rgba(0, 0, 0, .55); }
+.campo-mini-nuvem.ok { background: var(--brand); }
+.campo-andamento { background: var(--card); border: 2px solid var(--brand); border-radius: var(--radius-l); padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
+.campo-andamento strong { font-size: 18px; font-weight: 800; }
+.campo-andamento .campo-novo { margin-top: 6px; min-height: 56px; font-size: 17px; }
+.campo-subindo { background: var(--mint); color: var(--on-pastel); border-radius: 18px; padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.campo-check-pend.andamento { color: var(--brand-text); font-weight: 700; }
+.campo-pend { font-size: 15px; font-weight: 600; color: var(--text-2); max-width: 340px; line-height: 1.45; }
+.campo-pend.ok { color: var(--brand-text); font-weight: 800; }
+.campo-apagar-link { color: var(--late-ink); font-size: 13px; margin-top: 4px; }
+.campo-apagar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; font-size: 13px; font-weight: 600; color: var(--late-ink); }
+.campo-logo { border: 0; background: none; padding: 0; display: flex; align-items: center; gap: 10px; color: inherit; }
+.rel-topo-acoes { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.rel-tag-andamento { margin-left: 8px; font-size: 11px; font-weight: 800; color: var(--brand-text); background: var(--mint); padding: 2px 8px; border-radius: 999px; }
+.rel-video-box { display: flex; flex-direction: column; gap: 6px; }
+.rel-video-info { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 13px; color: var(--text-2); }
+.rel-video-info .link-btn { color: var(--brand-text); font-size: 13px; }
+.rel-pill.andamento { background: transparent; color: var(--brand-text); border: 1.5px dashed var(--brand); }
+.pin-rel.andamento { background: transparent; color: var(--brand-text); border: 1.5px dashed var(--brand); cursor: pointer; }

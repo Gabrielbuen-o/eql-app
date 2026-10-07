@@ -316,10 +316,10 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
                       const custoDia = idx.custoCelula[chave] || 0;
                       const rs = idx.rels[chave] || [];
                       const pinRel = relatoriosLigados && (rs.length ? (
-                        <button key="rel" type="button" className="pin-rel ok" title={rs.map((r) => tipoRelatorio[r.tipo]?.nome).join(', ')}
+                        <button key="rel" type="button" className={'pin-rel ' + (rs.every((r) => r.status === 'rascunho') ? 'andamento' : 'ok')} title={rs.map((r) => tipoRelatorio[r.tipo]?.nome + (r.status === 'rascunho' ? ' (em andamento)' : '')).join(', ')}
                           onPointerDown={(e) => e.stopPropagation()}
                           onClick={(e) => { e.stopPropagation(); onRelatorio?.(rs[rs.length - 1]); }}>
-                          ✓ {rs.length === 1 ? 'Relatório' : `${rs.length} relatórios`}
+                          {rs.every((r) => r.status === 'rascunho') ? 'Relatório em andamento' : `✓ ${rs.length === 1 ? 'Relatório' : `${rs.length} relatórios`}`}
                         </button>
                       ) : dia <= dia0 && temGente(d.id, dia) ? (
                         <span key="rel" className={'pin-rel ' + (dia < dia0 ? 'faltou' : 'pend')} title={dia < dia0 ? 'Teve equipe e nenhum relatório' : 'Relatório de hoje ainda não chegou'}>

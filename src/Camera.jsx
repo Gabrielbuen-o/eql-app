@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { desenharCarimbo } from './midia.js';
 import { createPortal } from 'react-dom';
 
 // Câmera dentro do app: fica aberta, tira várias fotos seguidas e volta com todas.
@@ -109,7 +110,9 @@ function formatoVideo() {
 
 // Gravador dentro do app: até `max` segundos, em 720p e qualidade leve (~8–12 MB por 30 s).
 // onPronto({ blob, mime, ext, duracao })
-export function GravadorVideo({ max = 30, onPronto, onFechar, onUsarNativa }) {
+// carimbo(agora) → linhas gravadas em cada quadro do vídeo (data/hora correndo, obra, nome, local)
+export function GravadorVideo({ max = 30, onPronto, onFechar, onUsarNativa, carimbo }) {
+  const desenhoRef = useRef(null); // { parar() } do desenho no canvas
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const recRef = useRef(null);
@@ -166,9 +169,37 @@ export function GravadorVideo({ max = 30, onPronto, onFechar, onUsarNativa }) {
     return () => clearInterval(t);
   }, [estado, max]);
 
+  // grava a imagem da câmera com o carimbo por cima (canvas). Se o aparelho não deixar, grava sem carimbo.
+  const streamComCarimbo = (s) => {
+    const v = videoRef.current;
+    if (!carimbo || !v?.videoWidth) return s;
+    const c = document.createElement('canvas');
+    if (typeof c.captureStream !== 'function') return s;
+    const escala = Math.min(1, 1280 / Math.max(v.videoWidth, v.videoHeight));
+    c.width = Math.round(v.videoWidth * escala); c.height = Math.round(v.videoHeight * escala);
+    const ctx = c.getContext('2d');
+    let vivo = true, ultimo = 0;
+    const quadro = (t) => {
+      if (!vivo) return;
+      if (t - ultimo >= 30) {
+        ultimo = t;
+        ctx.drawImage(v, 0, 0, c.width, c.height);
+        desenharCarimbo(ctx, c.width, c.height, carimbo(new Date()));
+      }
+      requestAnimationFrame(quadro);
+    };
+    requestAnimationFrame(quadro);
+    const saida = c.captureStream(30);
+    s.getAudioTracks().forEach((t) => saida.addTrack(t));
+    desenhoRef.current = { parar: () => { vivo = false; saida.getVideoTracks().forEach((t) => t.stop()); } };
+    return saida;
+  };
+
   const gravar = () => {
-    const s = streamRef.current;
-    if (!s) return;
+    const bruto = streamRef.current;
+    if (!bruto) return;
+    let s = bruto;
+    try { s = streamComCarimbo(bruto); } catch { s = bruto; }
     const mime = formatoVideo();
     let rec;
     try {
@@ -179,10 +210,11 @@ export function GravadorVideo({ max = 30, onPronto, onFechar, onUsarNativa }) {
     partes.current = [];
     rec.ondataavailable = (e) => e.data && e.data.size && partes.current.push(e.data);
     rec.onstop = () => {
+      desenhoRef.current?.parar(); desenhoRef.current = null;
       const tipo = (rec.mimeType || mime || 'video/mp4').split(';')[0];
       const blob = new Blob(partes.current, { type: tipo });
       const duracao = Math.max(1, Math.round((Date.now() - inicio.current) / 1000));
-      setGravado({ blob, url: URL.createObjectURL(blob), mime: tipo, ext: tipo.includes('webm') ? 'webm' : 'mp4', duracao: Math.min(duracao, max) });
+      setGravado({ blob, url: URL.createObjectURL(blob), mime: tipo, ext: tipo.includes('webm') ? 'webm' : 'mp4', duracao: Math.min(duracao, max), quando: new Date(inicio.current) });
       setEstado('revisar');
     };
     recRef.current = rec;
@@ -210,6 +242,9 @@ export function GravadorVideo({ max = 30, onPronto, onFechar, onUsarNativa }) {
         <video ref={videoRef} playsInline muted autoPlay style={{ display: estado === 'revisar' ? 'none' : undefined }} />
         {estado === 'revisar' && gravado && <video key={gravado.url} src={gravado.url} playsInline controls autoPlay />}
         {estado === 'gravando' && <div className="cam-barra"><span style={{ width: `${(seg / max) * 100}%` }} /></div>}
+        {carimbo && (estado === 'pronto' || estado === 'gravando') && (
+          <div className="cam-carimbo" aria-hidden="true">{carimbo(new Date()).map((l, i) => <span key={i} className={i ? '' : 'l1'}>{l}</span>)}</div>
+        )}
         {estado === 'abrindo' && <p className="cam-msg">Abrindo a câmera…</p>}
         {estado === 'erro' && (
           <div className="cam-msg">

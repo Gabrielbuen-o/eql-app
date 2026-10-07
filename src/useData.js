@@ -266,7 +266,7 @@ export function useData(avisar, userId) {
   const apagarLancamento = (id) => apagar('custos_lancamentos', id);
 
   return {
-    ...db, carregando, online, faltando,
+    ...db, carregando, online, faltando, recarregarTabela: recarregar,
     definirCusto, apagarCusto, salvarFinanceiro, lancarCusto, apagarLancamento,
     enviarArquivo, urlArquivo, salvarRelatorio, apagarRelatorio, salvarFrase, alternarFrase, apagarFrase,
     atualizarPerfil, enviarFoto,

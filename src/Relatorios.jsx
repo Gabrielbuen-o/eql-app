@@ -44,7 +44,7 @@ export function Relatorios({ dados, pode }) {
     const parados = linhas.filter((l) => !l.pessoas.length && (!l.d.arquivada || l.rels.length))
       .sort((a, b) => b.rels.length - a.rels.length || a.d.nome.localeCompare(b.d.nome, 'pt-BR'));
     const esperado = dia <= dia0 ? operando.length * DIARIOS.length : 0;
-    const feitos = operando.reduce((s, l) => s + DIARIOS.filter((t) => l.rels.some((r) => r.tipo === t.id)).length, 0);
+    const feitos = operando.reduce((s, l) => s + DIARIOS.filter((t) => l.rels.some((r) => r.tipo === t.id && r.status !== 'rascunho')).length, 0);
     return { operando, parados, esperado, feitos, total: linhas.reduce((s, l) => s + l.rels.length, 0) };
   };
 
@@ -169,6 +169,7 @@ function Legenda() {
   return (
     <div className="rel-legenda" aria-label="Legenda">
       <span><i className="rel-pill enviado" /> enviado</span>
+      <span><i className="rel-pill andamento" /> em andamento</span>
       <span><i className="rel-pill pendente" /> ainda não chegou</span>
       <span><i className="rel-pill faltou" /> não foi enviado</span>
     </div>
@@ -189,7 +190,7 @@ function Resumo({ x, dia, hojeIso, grande }) {
 // Situação de cada tipo de relatório na obra/dia
 function estado(l, t, dia, hojeIso) {
   const rs = l.rels.filter((r) => r.tipo === t.id);
-  if (rs.length) return { cls: 'enviado', rs };
+  if (rs.length) return { cls: rs.some((r) => r.status !== 'rascunho') ? 'enviado' : 'andamento', rs };
   if (dia > hojeIso || !l.pessoas.length) return null;
   return { cls: dia < hojeIso ? 'faltou' : 'pendente', rs };
 }
@@ -211,11 +212,11 @@ function CartaoObra({ l, dia, hojeIso, nomeFunc, onAbrir, compacto, dados, onNov
               const e = estado(l, t, dia, hojeIso);
               if (!e) return null;
               return e.rs.length ? (
-                <button key={t.id} type="button" className="rel-pill enviado" title={`${t.nome}: ${hora(e.rs[0].criado_em)} · ${contagem(e.rs[0])}`}
+                <button key={t.id} type="button" className={'rel-pill ' + e.cls} title={(e.cls === 'andamento' ? 'Em andamento · ' : '') + `${t.nome}: ${hora(e.rs[0].criado_em)} · ${contagem(e.rs[0])}`}
                   onClick={() => onAbrir(e.rs[e.rs.length - 1])}>{t.curto}{e.rs.length > 1 ? ` ×${e.rs.length}` : ''}</button>
               ) : <span key={t.id} className={'rel-pill ' + e.cls} title={`${t.nome}: ${e.cls === 'faltou' ? 'não foi enviado' : 'ainda não chegou'}`}>{t.curto}</span>;
             })}
-            {extras.map((r) => <button key={r.id} type="button" className="rel-pill enviado" onClick={() => onAbrir(r)}>{tipoRelatorio[r.tipo]?.curto}</button>)}
+            {extras.map((r) => <button key={r.id} type="button" className={'rel-pill ' + (r.status === 'rascunho' ? 'andamento' : 'enviado')} onClick={() => onAbrir(r)}>{tipoRelatorio[r.tipo]?.curto}</button>)}
           </div>
         )}
       </div>
@@ -265,7 +266,7 @@ function LinhaParada({ l, onAbrir }) {
       <span className="dot" style={{ background: empresaPorId[l.d.empresa]?.cor }} aria-hidden="true" />
       <span className="rel-parada-nome" title={l.d.nome}>{l.d.nome}</span>
       {l.rels.map((r) => (
-        <button key={r.id} type="button" className="rel-pill enviado" onClick={() => onAbrir(r)}>{tipoRelatorio[r.tipo]?.curto}</button>
+        <button key={r.id} type="button" className={'rel-pill ' + (r.status === 'rascunho' ? 'andamento' : 'enviado')} onClick={() => onAbrir(r)}>{tipoRelatorio[r.tipo]?.curto}</button>
       ))}
     </div>
   );

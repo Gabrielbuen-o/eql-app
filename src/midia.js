@@ -57,8 +57,15 @@ export async function carimbar(base, linhas) {
   const img = await abrirImagem(base);
   const c = desenharCanvas(img, FOTO_LADO);
   img.close?.();
-  const ctx = c.getContext('2d');
-  const W = c.width, H = c.height;
+  desenharCarimbo(c.getContext('2d'), c.width, c.height, linhas);
+  const foto = await paraBlob(c, FOTO_QUALIDADE);
+  const miniatura = await desenhar(c, MINI_LADO, MINI_QUALIDADE);
+  return { foto, miniatura };
+}
+
+
+// Desenha a faixa do carimbo (usada nas fotos e, quadro a quadro, nos vídeos gravados no app)
+export function desenharCarimbo(ctx, W, H, linhas) {
   const u = Math.max(W, H) / 100;                 // unidade proporcional ao tamanho da foto
   const f1 = Math.round(Math.max(16, u * 2.5));   // data e hora
   const f2 = Math.round(Math.max(12, u * 1.6));   // demais linhas
@@ -86,9 +93,8 @@ export async function carimbar(base, linhas) {
   ctx.font = `800 ${f2}px "Plus Jakarta Sans", system-ui, sans-serif`;
   ctx.fillText('EQL Group', W - pad, H - pad - gap);
   ctx.globalAlpha = 1;
-  const foto = await paraBlob(c, FOTO_QUALIDADE);
-  const miniatura = await desenhar(c, MINI_LADO, MINI_QUALIDADE);
-  return { foto, miniatura };
+  ctx.textAlign = 'left';
+  ctx.shadowBlur = 0;
 }
 
 // Lê data/hora original e GPS do EXIF de um JPEG (fotos da galeria). Devolve {} se não tiver.

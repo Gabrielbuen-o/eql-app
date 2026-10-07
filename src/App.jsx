@@ -98,9 +98,11 @@ function Painel({ usuario }) {
   useEffect(() => {
     const lista = dados.relatorios || [];
     if (dados.carregando) return;
-    if (!vistos.current) { vistos.current = new Set(lista.map((r) => r.id)); return; }
-    const novos = lista.filter((r) => !vistos.current.has(r.id));
-    novos.forEach((r) => vistos.current.add(r.id));
+    // só avisa quando o relatório é concluído (em andamento não conta)
+    const chave = (r) => r.id + (r.status === 'rascunho' ? ':r' : '');
+    if (!vistos.current) { vistos.current = new Set(lista.map(chave)); return; }
+    const novos = lista.filter((r) => r.status !== 'rascunho' && !vistos.current.has(chave(r)));
+    lista.forEach((r) => vistos.current.add(chave(r)));
     if (!pode.gestao || !novos.length) return;
     const r = novos[novos.length - 1];
     if (r.autor_id === usuario.id) return;
