@@ -13,6 +13,7 @@ import { Inicio } from './Inicio.jsx';
 import { Fabrica } from './Fabrica.jsx';
 import { AppCampo } from './Campo.jsx';
 import { Relatorios } from './Relatorios.jsx';
+import { CalendarioObras } from './CalendarioObras.jsx';
 import { tipoRelatorio } from './lib.js';
 
 // mostrar: quem vê a aba (a partir das permissões)
@@ -20,13 +21,13 @@ const ABAS = [
   { id: 'inicio', nome: 'Início', mostrar: (p) => p.verOperacao },
   { id: 'demandas', nome: 'Demandas', mostrar: () => true,
     sub: [{ id: 'obras', nome: 'Obras', mostrar: () => true },
-      { id: 'calendario', nome: 'Calendário', nivel: 2, mostrar: (p) => p.verOperacao },
-      { id: 'eko', nome: 'Eko', mostrar: (p) => p.verOperacao }] },
+      { id: 'fabrica', nome: 'Fábrica', mostrar: (p) => p.verOperacao }] },
+  { id: 'calendario', nome: 'Calendário de obras', mostrar: (p) => p.verOperacao },
+  { id: 'relatorios', nome: 'Relatórios de obra', mostrar: (p) => p.gestao },
   { id: 'equipes', nome: 'Equipes', mostrar: (p) => p.gestao },
   { id: 'frotas', nome: 'Frotas', mostrar: (p) => p.gestao },
   { id: 'financeiro', nome: 'Financeiro', mostrar: (p) => p.verFinanceiro },
   { id: 'rh', nome: 'RH & Ponto', mostrar: (p) => p.gestao, breve: 'Cadastro de funcionários, ponto diário e documentos.' },
-  { id: 'relatorios', nome: 'Relatórios de obra', mostrar: (p) => p.gestao },
   { id: 'aquisicao', nome: 'Aquisição', mostrar: (p) => p.admin, breve: 'Canais e funis de aquisição, investimento e retorno por canal.' },
   { id: 'config', nome: 'Configurações', mostrar: () => true },
 ];
@@ -137,7 +138,7 @@ function Painel({ usuario }) {
                   {a.breve && <span className="soon">em breve</span>}
                 </button>,
                 atual.id === a.id && a.sub?.filter((x) => x.mostrar(pode)).map((x) => (
-                  <button key={a.id + '/' + x.id} type="button" className={'sub' + (x.nivel === 2 ? ' n2' : '') + (sub === x.id ? ' on' : '')}
+                  <button key={a.id + '/' + x.id} type="button" className={'sub' + (sub === x.id ? ' on' : '')}
                     aria-current={sub === x.id ? 'page' : undefined} onClick={() => setAba(a.id + '/' + x.id)}>
                     <span>{x.nome}</span>
                   </button>
@@ -157,16 +158,18 @@ function Painel({ usuario }) {
           <ProtecaoErro chave={aba}>
           {dados.carregando ? (
             <p className="empty">Carregando dados…</p>
-          ) : atual.id === 'demandas' && sub === 'eko' ? (
+          ) : atual.id === 'demandas' && sub === 'fabrica' ? (
             <Fabrica dados={dados} tv={tv} setTv={setTv} pode={pode} custos={custos.porDemanda} />
           ) : atual.id === 'demandas' ? (
-            <Demandas key={sub || 'geral'} modo={sub || 'geral'} dados={dados} tv={tv} setTv={setTv} avisar={avisar} pode={pode} custos={custos.porDemanda} />
+            <Demandas key="obras" modo="obras" dados={dados} tv={tv} setTv={setTv} avisar={avisar} pode={pode} custos={custos.porDemanda} />
+          ) : atual.id === 'calendario' ? (
+            <CalendarioObras dados={dados} tv={tv} setTv={setTv} avisar={avisar} pode={pode} />
           ) : atual.id === 'equipes' ? (
             <Equipe dados={dados} pode={pode} />
           ) : atual.id === 'frotas' ? (
             <Frotas dados={dados} />
           ) : atual.id === 'inicio' ? (
-            <Inicio dados={dados} eu={eu} irPara={irPara} tv={tv} setTv={setTv} />
+            <Inicio dados={dados} eu={eu} irPara={irPara} tv={tv} setTv={setTv} pode={pode} porDemanda={custos.porDemanda} />
           ) : atual.id === 'relatorios' ? (
             <Relatorios dados={dados} pode={pode} />
           ) : atual.id === 'financeiro' ? (

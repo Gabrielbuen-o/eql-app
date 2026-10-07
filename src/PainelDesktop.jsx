@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import { PainelFinanceiro, useMesFinanceiro, useResumoFinanceiro } from './PainelFinanceiro.jsx';
+import { brl } from './custos.js';
 import {
+  mensagemDoDia, saudacao,
   EMPRESAS, addDias, diaSemana, diffDias, empresaPorId, faseNome, fmt, hoje, inicioSemana, parse, percentual, rotuloPrazo, situacao,
 } from './lib.js';
 
@@ -13,7 +16,7 @@ const FASES_ORDEM = [
   { id: 'estoque', nome: 'Estoque', cor: 'var(--ph-5)', tinta: 'var(--ph-ink-5)' },
 ];
 
-export function PainelDesktop({ dados, eu, irPara, tv, setTv }) {
+export function PainelDesktop({ dados, eu, irPara, tv, setTv, pode, porDemanda }) {
   const dia = hoje();
   const agora = useRelogio();
   const abertas = dados.demandas.filter((d) => !d.arquivada);
@@ -49,27 +52,68 @@ export function PainelDesktop({ dados, eu, irPara, tv, setTv }) {
   const criticos = [...atrasadas, ...urgentes].sort((a, b) => (PESO[sit(a)] - PESO[sit(b)]) || (a.entrega || '').localeCompare(b.entrega || ''));
 
   const primeiroNome = (eu?.nome || '').split(' ')[0];
+  // visão: 'demandas' (todos) ou 'financeiro' (só administradores)
+  const [visaoSalva, setVisaoSalva] = useState(() => { try { return localStorage.getItem('eql-inicio-visao') || 'demandas'; } catch { return 'demandas'; } });
+  const visao = pode?.admin && !tv ? visaoSalva : 'demandas';
+  const setVisao = (v) => { setVisaoSalva(v); try { localStorage.setItem('eql-inicio-visao', v); } catch { /* ignora */ } };
+  const mes = useMesFinanceiro(dia);
+  const fin = useResumoFinanceiro(dados, porDemanda, mes.mes, visao === 'financeiro');
+  const frases = (dados.frases || []).filter((x) => x.ativo !== false).map((x) => x.texto);
+  const atencao = [...atrasadas, ...abertas.filter((d) => sit(d) === 'urgente')];
 
   return (
     <div className="painel">
-      <header className="painel-head">
-        <div>
-          <h1>Operação EQL</h1>
-          <p className="date">
-            {agora.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
-            {primeiroNome ? ` · olá, ${primeiroNome}` : ''}
-          </p>
+      <header className={'hero' + (visao === 'financeiro' ? ' fin' : '')}>
+        <div className="hero-txt">
+          <p className="hero-data">{agora.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+          <h1>{saudacao(agora)}{primeiroNome ? `, ${primeiroNome}` : ''}.</h1>
+          {visao === 'financeiro' ? (
+            <p className="hero-linha">
+              {mes.atual ? 'Este mês' : `Em ${mes.nome.toLowerCase()}`} a EQL faturou <b>{brl(fin?.faturado || 0)}</b>
+            </p>
+          ) : (
+            <p className="hero-linha">
+              Hoje temos <b>{obrasHoje.length} {obrasHoje.length === 1 ? 'atividade prevista' : 'atividades previstas'}</b>
+              {atencao.length > 0 && <> e <b className="hero-alerta">{atencao.length} pedindo atenção</b></>}
+            </p>
+          )}
+          <p className="hero-frase">{mensagemDoDia(dia, frases)}</p>
         </div>
-        <div className="row" style={{ alignItems: 'center', gap: 16 }}>
-          {setTv && (tv
-            ? <button type="button" className="pill dark" onClick={() => { setTv(false); if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); }}>Sair do modo TV</button>
-            : <button type="button" className="pill ghost" onClick={() => { setTv(true); document.documentElement.requestFullscreen?.().catch(() => {}); }}>Modo TV</button>)}
-        <div className="painel-clock" aria-label="Hora atual">
-          {agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-          <small>atualiza sozinho</small>
-        </div>
+        <div className="hero-lado">
+          <div className="hero-acoes">
+            {pode?.admin && !tv && (
+              <div className="hero-seg" role="group" aria-label="Visão do painel">
+                <button type="button" className={visao === 'demandas' ? 'on' : ''} aria-pressed={visao === 'demandas'} onClick={() => setVisao('demandas')}>Demandas</button>
+                <button type="button" className={visao === 'financeiro' ? 'on' : ''} aria-pressed={visao === 'financeiro'} onClick={() => setVisao('financeiro')}>Financeiro</button>
+              </div>
+            )}
+            {setTv && (tv
+              ? <button type="button" className="hero-btn" onClick={() => { setTv(false); if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); }}>Sair do modo TV</button>
+              : <button type="button" className="hero-btn" onClick={() => { setTv(true); document.documentElement.requestFullscreen?.().catch(() => {}); }}>Modo TV</button>)}
+          </div>
+          <div className="painel-clock" aria-label="Hora atual">
+            {agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            <small>atualiza sozinho</small>
+          </div>
+          {visao === 'financeiro' && (
+            <div className="hero-mes">
+              <button type="button" aria-label="Mês anterior" onClick={mes.anterior}>‹</button>
+              <span>{mes.nome}</span>
+              <button type="button" aria-label="Próximo mês" onClick={mes.proximo} disabled={mes.atual}>›</button>
+            </div>
+          )}
         </div>
       </header>
+
+      {visao === 'financeiro' ? (
+        <>
+          <PainelFinanceiro f={fin} dados={dados} mes={mes} irPara={irPara} />
+          <h2 className="painel-sec">Operação</h2>
+        </>
+      ) : (
+        <HojeResumo obrasHoje={obrasHoje} porObra={porObra} abertas={abertas} atencao={atencao} sit={sit} dia={dia}
+          veicAtivos={veicAtivos} hojeVeic={hojeVeic} demandaPorId={demandaPorId} livres={livres} fora={fora} nomeFunc={nomeFunc} irPara={irPara} />
+      )}
 
       {/* ---------- números ---------- */}
       <div className="kpis">
@@ -113,7 +157,7 @@ export function PainelDesktop({ dados, eu, irPara, tv, setTv }) {
         <section className="card stack" aria-label="Hoje nas obras">
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <TituloGrafico titulo={`Hoje nas obras · ${obrasHoje.length}`} sub={`${idsAloc.size} pessoas e ${veicUso.size} veículos em campo`} />
-            <button type="button" className="pill ghost" onClick={() => irPara('demandas/calendario')}>Abrir agenda</button>
+            <button type="button" className="pill ghost" onClick={() => irPara('calendario')}>Abrir calendário</button>
           </div>
           {!obrasHoje.length && <p className="empty">Ninguém foi colocado em obra para hoje na agenda.</p>}
           <div className="today-list painel-today">
@@ -187,13 +231,13 @@ export function PainelDesktop({ dados, eu, irPara, tv, setTv }) {
 }
 
 // ---------- peças ----------
-function useRelogio() {
+export function useRelogio() {
   const [agora, setAgora] = useState(() => new Date());
   useEffect(() => { const t = setInterval(() => setAgora(new Date()), 30000); return () => clearInterval(t); }, []);
   return agora;
 }
 
-function TituloGrafico({ titulo, sub }) {
+export function TituloGrafico({ titulo, sub }) {
   return (
     <div>
       <h2 className="card-title">{titulo}</h2>
@@ -202,7 +246,7 @@ function TituloGrafico({ titulo, sub }) {
   );
 }
 
-function Kpi({ rotulo, valor, dica, cor, onClick }) {
+export function Kpi({ rotulo, valor, dica, cor, onClick }) {
   return (
     <button type="button" className="stat kpi" style={{ background: cor }} onClick={onClick} aria-label={`${rotulo}: ${valor}`}>
       <span className="stat-label">{rotulo}</span>
@@ -212,7 +256,7 @@ function Kpi({ rotulo, valor, dica, cor, onClick }) {
   );
 }
 
-function KpiMedidor({ rotulo, valor, pct, dica }) {
+export function KpiMedidor({ rotulo, valor, pct, dica }) {
   const p = Math.max(0, Math.min(100, Math.round(pct || 0)));
   return (
     <div className="kpi kpi-meter">
@@ -224,7 +268,7 @@ function KpiMedidor({ rotulo, valor, pct, dica }) {
   );
 }
 
-function Legenda({ itens }) {
+export function Legenda({ itens }) {
   return (
     <div className="legenda" aria-hidden="true">
       {itens.map((i) => <span key={i.nome}><i style={{ background: i.cor }} />{i.nome}</span>)}
@@ -233,7 +277,7 @@ function Legenda({ itens }) {
 }
 
 // tooltip simples, posicionado sobre o gráfico
-function useTip() {
+export function useTip() {
   const [tip, setTip] = useState(null);
   const mostrar = (e, conteudo) => {
     const box = e.currentTarget.closest('.chart-box').getBoundingClientRect();
@@ -443,8 +487,82 @@ function Andamentos({ abertas }) {
   );
 }
 
-function barraArredondada(x, y, w, h, r) {
+export function barraArredondada(x, y, w, h, r) {
   if (h <= 0) return '';
   const rr = Math.min(r, w / 2, h);
   return `M${x},${y + h} L${x},${y + rr} Q${x},${y} ${x + rr},${y} L${x + w - rr},${y} Q${x + w},${y} ${x + w},${y + rr} L${x + w},${y + h} Z`;
+}
+
+// Topo da visão "Demandas": o dia de hoje em cartões (obras, atenção, equipes e frota)
+function HojeResumo({ obrasHoje, porObra, abertas, atencao, sit, dia, veicAtivos, hojeVeic, demandaPorId, livres, fora, irPara }) {
+  const emExecucao = abertas.filter((d) => d.fase === 'execucao' && d.empresa !== 'eko');
+  const destino = {};
+  hojeVeic.forEach((a) => (destino[a.veiculo_id] ||= []).push(demandaPorId[a.demanda_id]?.nome || '?'));
+  const frota = [...veicAtivos].sort((a, b) => Number(!!destino[b.id]) - Number(!!destino[a.id]));
+  return (
+    <section className="hoje" aria-label="Hoje">
+      <div className="hoje-tiles">
+        <button type="button" className="hoje-tile t-agenda" onClick={() => irPara('calendario')}>
+          <span className="hoje-tile-l">Obras na agenda hoje</span>
+          <span className="hoje-tile-v">{obrasHoje.length}</span>
+          <span className="hoje-tile-h">{obrasHoje.length ? obrasHoje.slice(0, 3).map((d) => d.nome).join(', ') + (obrasHoje.length > 3 ? '…' : '') : 'ninguém escalado ainda'}</span>
+        </button>
+        <button type="button" className="hoje-tile t-ativas" onClick={() => irPara('demandas', null)}>
+          <span className="hoje-tile-l">Obras ativas</span>
+          <span className="hoje-tile-v">{emExecucao.length}</span>
+          <span className="hoje-tile-h">em execução · {Math.max(0, emExecucao.length - obrasHoje.filter((d) => d.fase === 'execucao').length)} sem equipe hoje</span>
+        </button>
+        <button type="button" className={'hoje-tile t-atencao' + (atencao.length ? ' tem' : '')} onClick={() => irPara('demandas', 'semana')}>
+          <span className="hoje-tile-l">Atenção hoje</span>
+          <span className="hoje-tile-v">{atencao.length}</span>
+          <span className="hoje-tile-h">{atencao.length ? atencao.slice(0, 3).map((d) => d.nome).join(', ') + (atencao.length > 3 ? '…' : '') : 'nenhuma atrasada ou urgente'}</span>
+        </button>
+        <div className="hoje-tile t-pessoas">
+          <span className="hoje-tile-l">Pessoas livres</span>
+          <span className="hoje-tile-v">{livres.length}</span>
+          <span className="hoje-tile-h">{fora.length ? `${fora.length} de folga/férias` : 'ninguém de folga'}</span>
+        </div>
+      </div>
+
+      <div className="painel-grid g-2-1">
+        <section className="card stack">
+          <TituloGrafico titulo="Equipes de hoje" sub="Quem está em cada obra" />
+          {obrasHoje.length ? (
+            <div className="equipes-hoje">
+              {obrasHoje.map((d) => {
+                const s = sit(d), g = porObra[d.id];
+                return (
+                  <div key={d.id} className={'equipe-card sit-' + s}>
+                    <div className="equipe-top">
+                      <span className="dot" style={{ background: empresaPorId[d.empresa]?.cor }} />
+                      <strong>{d.nome}</strong>
+                      {(s === 'atrasada' || s === 'urgente') && <span className={'due ' + s}>{rotuloPrazo(d, dia)}</span>}
+                    </div>
+                    <div className="equipe-chips">
+                      {g.p.map((n, i) => <span key={'p' + i} className="eq-chip p">{n}</span>)}
+                      {g.v.map((n, i) => <span key={'v' + i} className="eq-chip v">{n}</span>)}
+                      {!g.p.length && <span className="eq-chip vazio">sem pessoas</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : <p className="empty">Ninguém foi colocado em obra para hoje. <button type="button" className="link-btn" onClick={() => irPara('calendario')}>Abrir calendário</button></p>}
+        </section>
+        <section className="card stack">
+          <TituloGrafico titulo="Frota hoje" sub={`${Object.keys(destino).length} de ${veicAtivos.length} em uso`} />
+          {frota.length ? (
+            <ul className="frota-hoje">
+              {frota.map((v) => (
+                <li key={v.id} className={destino[v.id] ? 'uso' : ''}>
+                  <span className="frota-n"><b>{v.nome}</b>{v.placa && <small>{v.placa}</small>}</span>
+                  <span className="frota-d">{destino[v.id] ? destino[v.id].join(', ') : 'parado'}</span>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="empty">Nenhum veículo cadastrado (aba Frotas).</p>}
+        </section>
+      </div>
+    </section>
+  );
 }

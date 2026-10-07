@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Atividades } from './Atividades.jsx';
-import { PAPEIS, PREFS_PADRAO, papelNome, reduzirImagem, supabase, tempoRelativo } from './lib.js';
+import { FRASES_PADRAO, PAPEIS, PREFS_PADRAO, hoje, mensagemDoDia, papelNome, reduzirImagem, supabase, tempoRelativo } from './lib.js';
 import { Avatar } from './Avatar.jsx';
 
 export function Configuracoes({ dados, eu, usuario, pode, salvarPrefs, avisar }) {
@@ -55,6 +55,7 @@ export function Configuracoes({ dados, eu, usuario, pode, salvarPrefs, avisar })
       </div>
 
       {pode.verOperacao && !semPerfis && <Usuarios dados={dados} eu={eu} pode={pode} avisar={avisar} verAtividades={verAtividades} />}
+      {pode.admin && <Frases dados={dados} />}
       {pode.admin && !semPerfis && <Atividades dados={dados} filtroUsuario={filtroLog} setFiltroUsuario={setFiltroLog} />}
     </>
   );
@@ -207,4 +208,53 @@ function LinhaUsuario({ p, dados, online, admin, eu, avisar, verAtividades }) {
 
 function lerPrefs() {
   try { return JSON.parse(localStorage.getItem('eql-prefs') || '{}') || {}; } catch { return {}; }
+}
+
+// Frases do dia (aparecem para o campo e no Início): administradores cadastram
+function Frases({ dados }) {
+  const [texto, setTexto] = useState('');
+  const [aberto, setAberto] = useState(false);
+  const lista = dados.frases || [];
+  const ativas = lista.filter((f) => f.ativo !== false).map((f) => f.texto);
+  const falta = dados.faltando.has('frases');
+  const adicionar = async () => {
+    const t = texto.trim();
+    if (t.length < 3) return;
+    if (await dados.salvarFrase(t)) setTexto('');
+  };
+  return (
+    <section className="card stack" aria-label="Frases do dia">
+      <div>
+        <h2 className="card-title">Frases do dia</h2>
+        <p className="note">Aparecem embaixo do “Bom dia, fulano” — uma por dia, a mesma para todo mundo, e mudam à meia-noite.</p>
+      </div>
+      <div className="frase-hoje"><span>Hoje:</span> {mensagemDoDia(hoje(), ativas)}</div>
+      {falta ? (
+        <p className="note">Para cadastrar as suas frases, rode no Supabase o arquivo <b>11_painel_financeiro_e_campo.sql</b>. Enquanto isso, o app usa {FRASES_PADRAO.length} frases prontas.</p>
+      ) : (
+        <>
+          <div className="row" style={{ flexWrap: 'nowrap' }}>
+            <input className="input" style={{ flex: 1 }} placeholder="Ex.: Que seu dia seja iluminado!" maxLength={240} value={texto}
+              onChange={(e) => setTexto(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && adicionar()} aria-label="Nova frase" />
+            <button type="button" className="pill lime" disabled={texto.trim().length < 3} onClick={adicionar}>Adicionar</button>
+          </div>
+          {lista.length ? (
+            <ul className="frases-lista">
+              {lista.map((f) => (
+                <li key={f.id} className={f.ativo === false ? 'off' : ''}>
+                  <span>{f.texto}</span>
+                  <button type="button" className="link-btn" onClick={() => dados.alternarFrase(f.id, f.ativo === false)}>{f.ativo === false ? 'Ativar' : 'Pausar'}</button>
+                  <button type="button" className="link-btn danger-text" onClick={() => dados.apagarFrase(f.id)}>Apagar</button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="note">Nenhuma frase cadastrada: o app usa {FRASES_PADRAO.length} frases prontas.{' '}
+              <button type="button" className="link-btn" onClick={() => setAberto((v) => !v)}>{aberto ? 'Esconder' : 'Ver quais são'}</button></p>
+          )}
+          {aberto && !lista.length && <ul className="frases-lista padrao">{FRASES_PADRAO.map((f) => <li key={f}><span>{f}</span></li>)}</ul>}
+        </>
+      )}
+    </section>
+  );
 }

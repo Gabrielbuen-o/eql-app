@@ -96,7 +96,7 @@ function InicioCelular({ dados, eu, irPara }) {
               {obrasHoje.length} {obrasHoje.length === 1 ? 'obra' : 'obras'} com equipe · {idsAlocados.size} {idsAlocados.size === 1 ? 'pessoa' : 'pessoas'} em campo
             </p>
           </div>
-          <button type="button" className="pill ghost" onClick={() => irPara('demandas/calendario')}>Abrir agenda</button>
+          <button type="button" className="pill ghost" onClick={() => irPara('calendario')}>Abrir calendário</button>
         </div>
 
         {!obrasHoje.length && (

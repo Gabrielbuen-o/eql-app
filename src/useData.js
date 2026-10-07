@@ -14,6 +14,7 @@ const TABELAS = {
   financeiro_demandas: ['atualizado_em', true, false],
   custos_lancamentos: ['dia', true, false],
   relatorios: ['criado_em', true, true],
+  frases: ['criado_em', true, false],
 };
 const NOMES = Object.keys(TABELAS);
 
@@ -254,6 +255,9 @@ export function useData(avisar, userId) {
     recarregar('relatorios');
     return true;
   };
+  const salvarFrase = (texto) => inserir('frases', { texto, ativo: true }, false);
+  const alternarFrase = (id, ativo) => atualizar('frases', id, { ativo });
+  const apagarFrase = (id) => apagar('frases', id);
   const apagarRelatorio = async (r) => {
     await apagar('relatorios', r.id);
     const caminhos = (r.arquivos || []).flatMap((a) => [a.caminho, a.miniatura]).filter(Boolean);
@@ -264,7 +268,7 @@ export function useData(avisar, userId) {
   return {
     ...db, carregando, online, faltando,
     definirCusto, apagarCusto, salvarFinanceiro, lancarCusto, apagarLancamento,
-    enviarArquivo, urlArquivo, salvarRelatorio, apagarRelatorio,
+    enviarArquivo, urlArquivo, salvarRelatorio, apagarRelatorio, salvarFrase, alternarFrase, apagarFrase,
     atualizarPerfil, enviarFoto,
     salvarDemanda, excluirDemanda,
     adicionarFuncionario, atualizarFuncionario, salvarVeiculo,
@@ -281,7 +285,7 @@ function limiteDias() {
 }
 
 // recursos que dependem de arquivos SQL opcionais: não geram aviso ao carregar
-const OPCIONAIS = ['custos_funcionarios', 'financeiro_demandas', 'custos_lancamentos', 'relatorios'];
+const OPCIONAIS = ['custos_funcionarios', 'financeiro_demandas', 'custos_lancamentos', 'relatorios', 'frases'];
 
 const CAMPOS_DEMANDA = ['empresa', 'grupo', 'nome', 'descricao', 'fase', 'percentual', 'inicio', 'entrega', 'pagamento',
   'qtd_total', 'qtd_produzida', 'unidade', 'arquivada', 'produto', 'especificacao'];

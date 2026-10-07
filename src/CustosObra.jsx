@@ -107,7 +107,7 @@ export function CustosObra({ demanda, dados, porDemanda }) {
   );
 }
 
-export function NovoLancamento({ dados, demandaId, dia: diaFixo }) {
+export function NovoLancamento({ dados, demandaId, dia: diaFixo, onLancado }) {
   const [tipo, setTipo] = useState('combustivel');
   const [dia, setDia] = useState(diaFixo || hoje());
   const [valor, setValor] = useState('');
@@ -120,7 +120,7 @@ export function NovoLancamento({ dados, demandaId, dia: diaFixo }) {
     setSalvando(true);
     const ok = await dados.lancarCusto({ demanda_id: demandaId, dia: diaFixo || dia, tipo, valor: v, descricao: desc.trim() || null });
     setSalvando(false);
-    if (ok !== false) { setValor(''); setDesc(''); }
+    if (ok !== false) { setValor(''); setDesc(''); onLancado?.(); }
   };
   return (
     <div className="lanc-form" role="group" aria-label="Lançar custo">

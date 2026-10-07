@@ -199,28 +199,43 @@ export function saudacao(d = new Date()) {
   return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
 }
 
-// Uma mensagem por dia (todo mundo vê a mesma no mesmo dia)
-const MENSAGENS = [
-  'Obra bem registrada é obra bem entregue. Capricha nas fotos!',
+// Frase do dia: as cadastradas pelos administradores (Configurações) ou estas, se não houver nenhuma.
+// Todo mundo vê a mesma frase no mesmo dia; muda à meia-noite.
+export const FRASES_PADRAO = [
+  'Que seu dia seja iluminado!',
+  'Que hoje tudo saia como planejado. Bom trabalho!',
   'Segurança primeiro: capacete, luva e atenção o dia todo.',
   'Cada detalhe bem feito hoje evita retrabalho amanhã.',
-  'Foto boa é foto com luz e ângulo aberto. Mostra o serviço todo.',
   'Obrigado pelo empenho. A EQL é feita por quem está na obra.',
-  'Começou bem, termina bem: relatório de início e de fim, combinado?',
+  'Um passo de cada vez, com qualidade. Bora pra cima!',
   'Local limpo é local seguro. Organização também é qualidade.',
   'Dúvida na obra? Pergunta antes de fazer. Melhor que refazer.',
   'Hidrata, faz pausa e se cuida. Você é o mais importante da obra.',
-  'O cliente vê o resultado; as fotos mostram o caminho. Registra tudo.',
   'Trabalho em equipe rende mais. Dá uma força pro colega hoje.',
-  'Material no lugar certo economiza tempo e evita acidente.',
   'Fez bem feito? Mostra! Foto de perto e foto de longe.',
-  'Toda obra sob controle começa com você. Bom trabalho!',
+  'Toda obra sob controle começa com você.',
   'Viu algo errado ou perigoso? Avisa na hora e registra com foto.',
   'Pontualidade e capricho: é isso que faz a EQL ser chamada de novo.',
   'Antes de ir embora: ferramentas guardadas e área limpa.',
-  'Um passo de cada vez, com qualidade. Bora pra cima!',
+  'Hoje é dia de fazer bonito. Conta com a gente!',
+  'Que a energia de hoje seja de obra entregue e sorriso no rosto.',
+  'Grandes obras são feitas de pequenos cuidados.',
+  'Começou bem, termina bem: relatório de início e de fim, combinado?',
+  'Seu trabalho constrói coisas que ficam. Orgulho disso!',
+  'Respira fundo, planeja e manda ver. Bom dia de trabalho!',
+  'Qualidade não é sorte, é capricho todo dia.',
+  'Que hoje o tempo ajude e o serviço renda!',
+  'Material no lugar certo economiza tempo e evita acidente.',
+  'Ninguém faz sozinho. Obrigado por fazer parte do time EQL.',
+  'Foco, segurança e bom humor: combinação que não falha.',
+  'Hoje vai ser produtivo. Confia no processo!',
+  'Cuide de você e de quem está do seu lado. Bom trabalho!',
+  'O cliente vê o resultado; as fotos mostram o caminho. Registra tudo.',
+  'Que seu dia seja leve e sua obra, caprichada!',
+  'Mais um dia para fazer o melhor serviço da região. Vamos nessa!',
 ];
-export function mensagemDoDia(dia = hoje()) {
+export function mensagemDoDia(dia = hoje(), lista) {
+  const frases = (lista && lista.length ? lista : FRASES_PADRAO);
   const n = Math.round(parse(dia).getTime() / 86400000);
-  return MENSAGENS[((n % MENSAGENS.length) + MENSAGENS.length) % MENSAGENS.length];
+  return frases[((n % frases.length) + frases.length) % frases.length];
 }

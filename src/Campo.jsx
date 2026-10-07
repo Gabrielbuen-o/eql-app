@@ -18,7 +18,18 @@ export function AppCampo({ dados, eu, avisar }) {
   const [novo, setNovo] = useState(false);
   const [aberto, setAberto] = useState(null); // relatório de hoje aberto para ver
 
-  const escolher = (id) => { setEscolhido(id); try { localStorage.setItem(chaveLocal, id); } catch { /* ignora */ } };
+  const [confirmar, setConfirmar] = useState(null); // funcionário tocado na lista, esperando "sou eu"
+  const guardarLocal = (id) => { setEscolhido(id); try { localStorage.setItem(chaveLocal, id); } catch { /* ignora */ } };
+  // "Sou eu": liga este login ao funcionário no sistema (fica valendo em qualquer aparelho)
+  const escolher = async (f) => {
+    setConfirmar(null);
+    guardarLocal(f.id);
+    if (eu && !eu.funcionario_id) {
+      const ok = await dados.atualizarPerfil(eu.id, { funcionario_id: f.id, nome: f.nome });
+      if (ok) avisar(`Pronto, ${f.nome.split(' ')[0]}! Seu acesso já está ligado ao seu nome.`);
+    }
+  };
+  const frasesAtivas = (dados.frases || []).filter((x) => x.ativo !== false).map((x) => x.texto);
 
   const minhasObras = useMemo(() => {
     const ids = [...new Set(dados.alocacoes.filter((a) => a.funcionario_id === fid && a.dia === dia).map((a) => a.demanda_id))];
@@ -27,6 +38,9 @@ export function AppCampo({ dados, eu, avisar }) {
   const colegas = (demandaId) => dados.alocacoes
     .filter((a) => a.demanda_id === demandaId && a.dia === dia && a.funcionario_id !== fid)
     .map((a) => dados.funcionarios.find((f) => f.id === a.funcionario_id)?.nome).filter(Boolean);
+  const frota = (demandaId) => [...new Set(dados.veiculo_alocacoes
+    .filter((a) => a.demanda_id === demandaId && a.dia === dia).map((a) => a.veiculo_id))]
+    .map((id) => dados.veiculos.find((v) => v.id === id)).filter(Boolean);
   const fora = dados.ausencias.find((a) => a.funcionario_id === fid && a.dia === dia);
   const relatoriosHoje = (dados.relatorios || []).filter((r) => r.dia === dia && (r.funcionario_id === fid || minhasObras.some((o) => o.id === r.demanda_id)));
   const semBanco = dados.faltando.has('relatorios');
@@ -39,12 +53,21 @@ export function AppCampo({ dados, eu, avisar }) {
         <TopoCampo onSair={sair} />
         <section className="campo-ola">
           <h1>{saudacao()}!</h1>
-          <p>Quem é você? Toque no seu nome.</p>
+          <p>{confirmar ? 'Confirme que é você:' : 'Quem é você? Toque no seu nome.'}</p>
         </section>
-        <div className="campo-quem">
-          {funcionarios.map((f) => <button key={f.id} type="button" onClick={() => escolher(f.id)}>{f.nome}</button>)}
-          {!funcionarios.length && <p className="empty">Nenhum funcionário cadastrado ainda.</p>}
-        </div>
+        {confirmar ? (
+          <div className="campo-confirma">
+            <strong>{confirmar.nome}</strong>
+            <span className="note">Seu acesso vai ficar ligado a este nome. Para trocar depois, só pedindo ao escritório.</span>
+            <button type="button" className="campo-novo" onClick={() => escolher(confirmar)}>Sim, sou eu</button>
+            <button type="button" className="pill ghost" onClick={() => setConfirmar(null)}>Não, voltar</button>
+          </div>
+        ) : (
+          <div className="campo-quem">
+            {funcionarios.map((f) => <button key={f.id} type="button" onClick={() => setConfirmar(f)}>{f.nome}</button>)}
+            {!funcionarios.length && <p className="empty">Nenhum funcionário cadastrado ainda.</p>}
+          </div>
+        )}
       </div>
     );
   }
@@ -55,10 +78,9 @@ export function AppCampo({ dados, eu, avisar }) {
       <section className="campo-ola">
         <p className="campo-data">{dataLonga().replace(/^./, (c) => c.toUpperCase())}</p>
         <h1>{saudacao()}, {func.nome.split(' ')[0]}!</h1>
-        {!eu?.funcionario_id && <button type="button" className="link-btn" onClick={() => escolher('')}>Não é você? Trocar</button>}
+        <p className="campo-frase">{mensagemDoDia(dia, frasesAtivas)}</p>
+        {!eu?.funcionario_id && <button type="button" className="link-btn" onClick={() => guardarLocal('')}>Não é você? Trocar</button>}
       </section>
-
-      <p className="campo-msg">{mensagemDoDia(dia)}</p>
 
       <section className="campo-obra" aria-label="Sua obra hoje">
         {minhasObras.length ? (
@@ -66,11 +88,18 @@ export function AppCampo({ dados, eu, avisar }) {
             <span className="campo-rot">Hoje você está na obra</span>
             {minhasObras.map((o) => {
               const c = colegas(o.id);
+              const carros = frota(o.id);
               return (
                 <div key={o.id} className="campo-obra-item">
                   <strong>{o.nome}</strong>
                   <span>{[empresaPorId[o.empresa]?.curto, o.grupo].filter(Boolean).join(' · ')}</span>
                   {c.length > 0 && <span>com {c.join(', ')}</span>}
+                  <div className={'campo-frota' + (carros.length ? '' : ' sem')}>
+                    <span className="campo-rot">Frota</span>
+                    {carros.length
+                      ? carros.map((v) => <b key={v.id}>{v.nome}{v.placa ? <small> · {v.placa}</small> : null}</b>)
+                      : <b>Nenhum veículo definido</b>}
+                  </div>
                 </div>
               );
             })}
@@ -141,11 +170,15 @@ export function contagem(r) {
 // ---------------------------------------------------------------------
 // Novo relatório: tipo → fotos (5 a 30, comprimidas no celular) → enviar
 // ---------------------------------------------------------------------
-function NovoRelatorio({ dados, func, minhasObras, avisar, onFechar }) {
-  const dia = hoje();
-  const [etapa, setEtapa] = useState('tipo'); // tipo | form | enviando | ok
-  const [tipo, setTipo] = useState(null);
-  const [demandaId, setDemandaId] = useState(minhasObras[0]?.id || '');
+// escritorio = administrador/gerente lançando um relatório que chegou por WhatsApp:
+// escolhe o dia e quem estava na obra, e pode mandar a partir de 1 foto.
+export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escritorio = false, diaInicial, obraInicial, tipoInicial }) {
+  const [dia, setDia] = useState(diaInicial || hoje());
+  const [funcId, setFuncId] = useState(func?.id || '');
+  const minimo = escritorio ? 1 : FOTOS_MIN;
+  const [etapa, setEtapa] = useState(tipoInicial ? 'form' : 'tipo'); // tipo | form | enviando | ok
+  const [tipo, setTipo] = useState(tipoInicial || null);
+  const [demandaId, setDemandaId] = useState(obraInicial || minhasObras[0]?.id || '');
   const [itens, setItens] = useState([]); // { key, foto, miniatura, preview, original, caminho?, mini? }
   const [video, setVideo] = useState(null); // { arquivo, preview, duracao, caminho? }
   const [obs, setObs] = useState('');
@@ -196,7 +229,7 @@ function NovoRelatorio({ dados, func, minhasObras, avisar, onFechar }) {
     } catch (e) { setErro(e.message); }
   };
 
-  const faltam = Math.max(0, FOTOS_MIN - itens.length);
+  const faltam = Math.max(0, minimo - itens.length);
   const pronto = demandaId && !faltam && !processando;
 
   const enviar = async () => {
@@ -246,7 +279,7 @@ function NovoRelatorio({ dados, func, minhasObras, avisar, onFechar }) {
       ...(video ? [{ tipo: 'video', caminho: video.caminho, bytes: video.arquivo.size, duracao: video.duracao }] : []),
     ];
     const ok = await dados.salvarRelatorio({
-      id: idRef.current, demanda_id: demandaId, funcionario_id: func.id, dia, tipo, observacao: obs.trim() || null, arquivos,
+      id: idRef.current, demanda_id: demandaId, funcionario_id: funcId || null, dia, tipo, observacao: obs.trim() || null, arquivos,
     });
     if (!ok) { setErro('As fotos subiram, mas o relatório não foi registrado. Toque em "Tentar de novo".'); setEtapa('form'); return; }
     setEtapa('ok');
@@ -297,10 +330,23 @@ function NovoRelatorio({ dados, func, minhasObras, avisar, onFechar }) {
               })}
             </select>
           </label>
+          {escritorio && (
+            <div className="campo-linha2">
+              <label className="field"><span>Dia do relatório</span>
+                <input type="date" value={dia} max={hoje()} onChange={(e) => e.target.value && setDia(e.target.value)} />
+              </label>
+              <label className="field"><span>Quem enviou / estava na obra</span>
+                <select value={funcId} onChange={(e) => setFuncId(e.target.value)}>
+                  <option value="">Não informado</option>
+                  {dados.funcionarios.filter((f) => f.ativo !== false).map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                </select>
+              </label>
+            </div>
+          )}
 
           <div className="campo-fotos-head">
             <strong>Fotos</strong>
-            <span className={faltam ? 'falta' : 'okk'}>{itens.length} {itens.length === 1 ? 'foto' : 'fotos'} · mín. {FOTOS_MIN}, máx. {FOTOS_MAX}</span>
+            <span className={faltam ? 'falta' : 'okk'}>{itens.length} {itens.length === 1 ? 'foto' : 'fotos'} · mín. {minimo}, máx. {FOTOS_MAX}</span>
           </div>
           <div className="campo-botoes">
             <button type="button" className="campo-add" onClick={() => camRef.current?.click()} disabled={itens.length >= FOTOS_MAX}>

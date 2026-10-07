@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ListaLancamentos, NovoLancamento } from './CustosObra.jsx';
 import { brl } from './custos.js';
-import { EMPRESAS, addDias, diaSemana, fmt, hoje, inicioSemana, ordemGrupo, situacao } from './lib.js';
+import { EMPRESAS, addDias, diaSemana, fmt, hoje, inicioSemana, ordemGrupo, situacao, tipoRelatorio } from './lib.js';
 
 const FORA = [
   { id: 'folga', nome: 'Folga' },
@@ -13,10 +13,16 @@ const FORA = [
 // Arraste funcionários e veículos da paleta para as células; arraste um nome já
 // colocado para outra célula (mover) ou para a lixeira (remover).
 // No celular também dá para tocar no nome e depois tocar na célula.
-export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = false }) {
+// modo 'semana' ou 'dia'; refDia/setRefDia vêm do Calendário de obras (navegação fica lá).
+// custoModo: 'ver' (admin: vê e lança valores) | 'lancar' (gerente: só lança, não vê) | null
+export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = false, custoModo, modo = 'semana', refDia, setRefDia, onRelatorio }) {
   const ro = !podeEditar;
+  const custos = custoModo || (admin ? 'ver' : null);
   const [custoCel, setCustoCel] = useState(null); // { demanda, dia }
-  const [semana, setSemana] = useState(() => inicioSemana(hoje()));
+  const [semanaLocal, setSemanaLocal] = useState(() => inicioSemana(hoje()));
+  const controlado = refDia != null;
+  const semana = controlado ? inicioSemana(refDia) : semanaLocal;
+  const setSemana = (d) => (controlado ? setRefDia(d) : setSemanaLocal(d));
   const [mostrarDomingo, setMostrarDomingo] = useState(false);
   const [selecionado, setSelecionado] = useState(null); // { kind, id } — modo toque
   const [arraste, setArraste] = useState(null);
@@ -24,9 +30,10 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
   const [lixeiraQuente, setLixeiraQuente] = useState(false);
 
   const dia0 = hoje();
+  const umDia = modo === 'dia' && controlado;
   const dias = useMemo(
-    () => Array.from({ length: mostrarDomingo ? 7 : 6 }, (_, i) => addDias(semana, i)),
-    [semana, mostrarDomingo]);
+    () => (umDia ? [refDia] : Array.from({ length: mostrarDomingo ? 7 : 6 }, (_, i) => addDias(semana, i))),
+    [umDia, refDia, semana, mostrarDomingo]);
 
   const funcs = dados.funcionarios.filter((f) => f.ativo);
   const veics = dados.veiculos.filter((v) => v.ativo);
@@ -52,8 +59,12 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
     });
     const custoCelula = {};
     (dados.custos_lancamentos || []).forEach((l) => { const k = l.demanda_id + '|' + l.dia; custoCelula[k] = (custoCelula[k] || 0) + Number(l.valor || 0); });
-    return { cel, recDia, aus, ausCel, custoCelula };
-  }, [dados.alocacoes, dados.veiculo_alocacoes, dados.ausencias, dados.custos_lancamentos]);
+    const rels = {};
+    (dados.relatorios || []).forEach((r) => (rels[r.demanda_id + '|' + r.dia] ||= []).push(r));
+    return { cel, recDia, aus, ausCel, custoCelula, rels };
+  }, [dados.alocacoes, dados.veiculo_alocacoes, dados.ausencias, dados.custos_lancamentos, dados.relatorios]);
+  const temGente = (demandaId, dia) => (idx.cel[demandaId + '|' + dia] || []).some((c) => c.kind === 'func');
+  const relatoriosLigados = !dados.faltando?.has('relatorios');
 
   const fora = (funcId, dia) => idx.aus[funcId + '|' + dia];
   const livres = (dia) => funcs.filter((f) => !idx.recDia['func|' + f.id + '|' + dia] && !fora(f.id, dia));
@@ -64,7 +75,8 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
     linhas: demandas
       .filter((d) => d.empresa === e.id && !d.arquivada)
       // atrasadas e urgentes (entrega em até 3 dias) sempre no topo, pela data; depois o resto por grupo
-      .sort((a, b) => prioridade(a) - prioridade(b)
+      .sort((a, b) => (umDia ? Number(temGente(b.id, refDia)) - Number(temGente(a.id, refDia)) : 0)
+        || prioridade(a) - prioridade(b)
         || (prioridade(a) < 2 ? (a.entrega || '').localeCompare(b.entrega || '') : 0)
         || ordemGrupo(a.grupo, b.grupo) || (a.entrega || '9999').localeCompare(b.entrega || '9999')),
   })).filter((s) => s.linhas.length);
@@ -197,19 +209,21 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
   );
 
   return (
-    <section className="card agenda" aria-label="Agenda das equipes">
+    <section className={'card agenda' + (umDia ? ' um-dia' : '')} aria-label="Agenda das equipes">
       <div className="agenda-head">
         <div>
           <h2>Agenda das equipes</h2>
           <p className="agenda-sub">{ro ? 'Quem está em cada obra, dia a dia.' : 'Arraste funcionários e veículos para a obra e o dia. Quem estiver fora, arraste para Folga ou Férias.'}</p>
         </div>
         <div className="week-nav">
-          <button type="button" className="pill" aria-label="Semana anterior" onClick={() => setSemana(addDias(semana, -7))}>‹</button>
-          <span className="week-label">{fmt(dias[0])} a {fmt(dias[dias.length - 1])}</span>
-          <button type="button" className="pill" aria-label="Próxima semana" onClick={() => setSemana(addDias(semana, 7))}>›</button>
-          {!estaSemana && <button type="button" className="pill" onClick={() => setSemana(inicioSemana(dia0))}>Hoje</button>}
-          <button type="button" className="pill ghost" onClick={() => setMostrarDomingo((v) => !v)}>{mostrarDomingo ? 'Ocultar domingo' : 'Mostrar domingo'}</button>
-          {!ro && <button type="button" className="pill dark" onClick={repetirSemanaAnterior}>Repetir semana anterior</button>}
+          {!controlado && <>
+            <button type="button" className="pill" aria-label="Semana anterior" onClick={() => setSemana(addDias(semana, -7))}>‹</button>
+            <span className="week-label">{fmt(dias[0])} a {fmt(dias[dias.length - 1])}</span>
+            <button type="button" className="pill" aria-label="Próxima semana" onClick={() => setSemana(addDias(semana, 7))}>›</button>
+            {!estaSemana && <button type="button" className="pill" onClick={() => setSemana(inicioSemana(dia0))}>Hoje</button>}
+          </>}
+          {!umDia && <button type="button" className="pill ghost" onClick={() => setMostrarDomingo((v) => !v)}>{mostrarDomingo ? 'Ocultar domingo' : 'Mostrar domingo'}</button>}
+          {!ro && !umDia && <button type="button" className="pill dark" onClick={repetirSemanaAnterior}>Repetir semana anterior</button>}
         </div>
       </div>
 
@@ -300,7 +314,25 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
                     {dias.map((dia) => {
                       const chave = d.id + '|' + dia;
                       const custoDia = idx.custoCelula[chave] || 0;
-                      const botaoCusto = admin && (
+                      const rs = idx.rels[chave] || [];
+                      const pinRel = relatoriosLigados && (rs.length ? (
+                        <button key="rel" type="button" className="pin-rel ok" title={rs.map((r) => tipoRelatorio[r.tipo]?.nome).join(', ')}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); onRelatorio?.(rs[rs.length - 1]); }}>
+                          ✓ {rs.length === 1 ? 'Relatório' : `${rs.length} relatórios`}
+                        </button>
+                      ) : dia <= dia0 && temGente(d.id, dia) ? (
+                        <span key="rel" className={'pin-rel ' + (dia < dia0 ? 'faltou' : 'pend')} title={dia < dia0 ? 'Teve equipe e nenhum relatório' : 'Relatório de hoje ainda não chegou'}>
+                          {dia < dia0 ? 'Sem relatório' : 'Relatório pendente'}
+                        </span>
+                      ) : null);
+                      const botaoLancar = custos === 'lancar' && (
+                        <button key="custo" type="button" className="cost-chip" title="Lançar custo (gasolina, material…)"
+                          aria-label={`Lançar custo em ${d.nome} no dia ${fmt(dia)}`}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); setCustoCel({ demanda: d, dia }); }}>+ custo</button>
+                      );
+                      const botaoCusto = custos === 'ver' && (
                         <button key="custo" type="button" className={'cost-chip' + (custoDia ? ' has' : '')}
                           title={custoDia ? 'Ver custos lançados neste dia' : 'Lançar custo neste dia'}
                           aria-label={custoDia ? `Custos do dia: ${brl(custoDia)}` : `Lançar custo em ${d.nome} no dia ${fmt(dia)}`}
@@ -319,7 +351,7 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
                           <ChipCelula key={a.id} kind={kind} recId={rec} alocId={a.id} dia={dia}
                             extraClasse={(kind === 'veic' ? 'veic' : '') + (aviso ? ' conf' : '')} aviso={aviso} />
                         );
-                      }), botaoCusto]);
+                      }), pinRel, botaoCusto, botaoLancar]);
                     })}
                   </tr>
                 );
@@ -330,7 +362,7 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
       </div>
 
       {custoCel && createPortal(
-        <CustosDoDia demanda={custoCel.demanda} dia={custoCel.dia} dados={dados} onFechar={() => setCustoCel(null)} />, document.body)}
+        <CustosDoDia demanda={custoCel.demanda} dia={custoCel.dia} dados={dados} soLancar={custos !== 'ver'} avisar={avisar} onFechar={() => setCustoCel(null)} />, document.body)}
       {arraste && createPortal(<div className="drag-ghost" style={{ left: arraste.x / zoomAtual(), top: arraste.y / zoomAtual() }}>{arraste.rotulo}</div>, document.body)}
     </section>
   );
@@ -340,8 +372,8 @@ function zoomAtual() {
   return parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
 }
 
-function CustosDoDia({ demanda, dia, dados, onFechar }) {
-  const lanc = (dados.custos_lancamentos || []).filter((l) => l.demanda_id === demanda.id && l.dia === dia);
+function CustosDoDia({ demanda, dia, dados, onFechar, soLancar, avisar }) {
+  const lanc = soLancar ? [] : (dados.custos_lancamentos || []).filter((l) => l.demanda_id === demanda.id && l.dia === dia);
   const total = lanc.reduce((t, l) => t + Number(l.valor || 0), 0);
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onFechar()}
@@ -355,8 +387,9 @@ function CustosDoDia({ demanda, dia, dados, onFechar }) {
           </div>
           <button type="button" className="icon-btn" aria-label="Fechar" onClick={onFechar}>×</button>
         </div>
-        <NovoLancamento dados={dados} demandaId={demanda.id} dia={dia} />
-        {lanc.length > 0 ? <ListaLancamentos lancamentos={lanc} dados={dados} mostrarDia={false} />
+        <NovoLancamento dados={dados} demandaId={demanda.id} dia={dia} onLancado={soLancar ? () => avisar?.('Custo lançado. Os valores ficam visíveis só para administradores.') : undefined} />
+        {soLancar ? <p className="note">Os valores lançados vão direto para os administradores.</p>
+          : lanc.length > 0 ? <ListaLancamentos lancamentos={lanc} dados={dados} mostrarDia={false} />
           : <p className="note">Nada lançado neste dia ainda.</p>}
         <div className="modal-foot" style={{ justifyContent: 'flex-end' }}>
           <button type="button" className="pill ghost" onClick={onFechar}>Fechar</button>

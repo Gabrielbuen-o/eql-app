@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { EMPRESAS, TIPOS_RELATORIO, addDias, diaSemana, empresaPorId, fmt, hoje, inicioSemana, iso, parse, tipoRelatorio } from './lib.js';
-import { VerRelatorio, contagem, hora } from './Campo.jsx';
+import { NovoRelatorio, VerRelatorio, contagem, hora } from './Campo.jsx';
 
 const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 
@@ -17,6 +17,7 @@ export function Relatorios({ dados, pode }) {
   const [ref, setRef] = useState(dia0);
   const [filtro, setFiltro] = useState('todas');
   const [aberto, setAberto] = useState(null);
+  const [novo, setNovo] = useState(null); // { dia, obra }
   const relatorios = dados.relatorios || [];
 
   // índices por "demanda|dia"
@@ -76,6 +77,9 @@ export function Relatorios({ dados, pode }) {
             <button key={e.id} type="button" className={'pill' + (filtro === e.id ? ' on' : '')} aria-pressed={filtro === e.id}
               onClick={() => setFiltro(e.id)}>{e.curto}</button>
           ))}
+          {pode.gestao && !dados.faltando.has('relatorios') && (
+            <button type="button" className="pill lime" onClick={() => setNovo({ dia: modo === 'dia' && ref <= dia0 ? ref : dia0 })}>+ Adicionar relatório</button>
+          )}
         </div>
       </header>
 
@@ -136,7 +140,7 @@ export function Relatorios({ dados, pode }) {
             <h2 className="rel-h2">Operando · {x.operando.length}</h2>
             {x.operando.length ? (
               <div className="rel-grade-dia">
-                {x.operando.map((l) => <CartaoObra key={l.d.id} l={l} dia={ref} hojeIso={dia0} nomeFunc={nomeFunc} onAbrir={setAberto} dados={dados} />)}
+                {x.operando.map((l) => <CartaoObra key={l.d.id} l={l} dia={ref} hojeIso={dia0} nomeFunc={nomeFunc} onAbrir={setAberto} dados={dados} onNovo={pode.gestao && !dados.faltando.has('relatorios') ? setNovo : null} />)}
               </div>
             ) : <p className="empty card">Ninguém escalado neste dia.</p>}
             <h2 className="rel-h2">Sem equipe · {x.parados.length}</h2>
@@ -150,6 +154,9 @@ export function Relatorios({ dados, pode }) {
 
       {modo === 'mes' && <Mes refIso={ref} hojeIso={dia0} doDia={doDia} onDia={abrirDia} />}
 
+      {novo && (
+        <NovoRelatorio dados={dados} escritorio diaInicial={novo.dia} obraInicial={novo.obra} tipoInicial={novo.tipo} onFechar={() => setNovo(null)} />
+      )}
       {aberto && (
         <VerRelatorio r={aberto} dados={dados} onFechar={() => setAberto(null)}
           onApagar={pode.gestao ? (r) => dados.apagarRelatorio(r) : null} />
@@ -187,7 +194,7 @@ function estado(l, t, dia, hojeIso) {
   return { cls: dia < hojeIso ? 'faltou' : 'pendente', rs };
 }
 
-function CartaoObra({ l, dia, hojeIso, nomeFunc, onAbrir, compacto, dados }) {
+function CartaoObra({ l, dia, hojeIso, nomeFunc, onAbrir, compacto, dados, onNovo }) {
   const extras = l.rels.filter((r) => !tipoRelatorio[r.tipo]?.ativo);
   const emp = empresaPorId[l.d.empresa];
   if (compacto) {
@@ -232,6 +239,7 @@ function CartaoObra({ l, dia, hojeIso, nomeFunc, onAbrir, compacto, dados }) {
             <div className="rel-linha-top">
               <span className={'rel-pill ' + e.cls}>{t.nome}</span>
               <span className="note">{e.rs.length ? e.rs.map((r) => `${hora(r.criado_em)} · ${contagem(r)}`).join(' | ') : e.cls === 'faltou' ? 'não foi enviado' : 'ainda não chegou'}</span>
+              {!e.rs.length && onNovo && <button type="button" className="link-btn rel-add" onClick={() => onNovo({ dia, obra: l.d.id, tipo: t.id })}>+ adicionar</button>}
             </div>
             {e.rs.map((r) => {
               const fotos = (r.arquivos || []).filter((a) => a.tipo !== 'video');
