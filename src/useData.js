@@ -15,6 +15,8 @@ const TABELAS = {
   custos_lancamentos: ['dia', true, false],
   relatorios: ['criado_em', true, true],
   frases: ['criado_em', true, false],
+  epi_itens: ['nome', true, false],
+  epi_movimentos: ['criado_em', true, false],
 };
 const NOMES = Object.keys(TABELAS);
 
@@ -255,6 +257,21 @@ export function useData(avisar, userId) {
     recarregar('relatorios');
     return true;
   };
+  // ---------- Estoque de EPI ----------
+  const salvarItemEpi = async (item) => {
+    const { id, criado_em, atualizado_em, ...campos } = item;
+    if (id && dbRef.current.epi_itens.some((x) => x.id === id)) return atualizar('epi_itens', id, campos);
+    return inserir('epi_itens', { ...(id ? { id } : {}), ...campos }, false);
+  };
+  const movimentarEpi = async (m) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const { error } = await supabase.from('epi_movimentos').insert({ ...m, autor_id: session?.user?.id });
+    if (falhou(error, 'epi_movimentos')) return false;
+    recarregar('epi_movimentos');
+    return true;
+  };
+  const atualizarMovimentoEpi = (id, campos) => atualizar('epi_movimentos', id, campos);
+  const apagarMovimentoEpi = (id) => apagar('epi_movimentos', id);
   const salvarFrase = (texto) => inserir('frases', { texto, ativo: true }, false);
   const alternarFrase = (id, ativo) => atualizar('frases', id, { ativo });
   const apagarFrase = (id) => apagar('frases', id);
@@ -269,6 +286,7 @@ export function useData(avisar, userId) {
     ...db, carregando, online, faltando, recarregarTabela: recarregar,
     definirCusto, apagarCusto, salvarFinanceiro, lancarCusto, apagarLancamento,
     enviarArquivo, urlArquivo, salvarRelatorio, apagarRelatorio, salvarFrase, alternarFrase, apagarFrase,
+    salvarItemEpi, movimentarEpi, atualizarMovimentoEpi, apagarMovimentoEpi,
     atualizarPerfil, enviarFoto,
     salvarDemanda, excluirDemanda,
     adicionarFuncionario, atualizarFuncionario, salvarVeiculo,
@@ -285,7 +303,7 @@ function limiteDias() {
 }
 
 // recursos que dependem de arquivos SQL opcionais: não geram aviso ao carregar
-const OPCIONAIS = ['custos_funcionarios', 'financeiro_demandas', 'custos_lancamentos', 'relatorios', 'frases'];
+const OPCIONAIS = ['custos_funcionarios', 'financeiro_demandas', 'custos_lancamentos', 'relatorios', 'frases', 'epi_itens', 'epi_movimentos'];
 
 const CAMPOS_DEMANDA = ['empresa', 'grupo', 'nome', 'descricao', 'fase', 'percentual', 'inicio', 'entrega', 'pagamento',
   'qtd_total', 'qtd_produzida', 'unidade', 'arquivada', 'produto', 'especificacao'];
@@ -300,6 +318,7 @@ function explicarErro(error) {
   const msg = error.message || String(error);
   if (/demandas_fase_check/.test(msg)) return 'a fase "Estoque" ainda não está liberada no banco (rode o arquivo 08_eko_e_custos_juntos.sql no Supabase).';
   if (/bucket not found|relatorios.*(does not exist|schema cache)|(does not exist|schema cache).*relatorios/i.test(msg)) return 'os relatórios ainda não estão liberados no banco (rode o arquivo 09_relatorios_de_obra.sql no Supabase).';
+  if (/epi_.*(does not exist|schema cache)|(does not exist|schema cache).*epi_/i.test(msg)) return 'o estoque de EPI ainda não está liberado no banco (rode o arquivo 13_estoque_epi.sql no Supabase).';
   if (/payload too large|exceeded the maximum allowed size|too large/i.test(msg)) return 'arquivo grande demais (máximo 50 MB).';
   if (/failed to fetch|network|load failed/i.test(msg)) return 'sem internet no momento. Tente de novo quando o sinal voltar.';
   if (/row-level security|permission denied/i.test(msg)) return 'seu tipo de acesso não permite essa alteração.';

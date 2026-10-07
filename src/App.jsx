@@ -14,6 +14,7 @@ import { Fabrica } from './Fabrica.jsx';
 import { AppCampo } from './Campo.jsx';
 import { Relatorios } from './Relatorios.jsx';
 import { CalendarioObras } from './CalendarioObras.jsx';
+import { EstoqueEPI } from './EstoqueEPI.jsx';
 import { tipoRelatorio } from './lib.js';
 
 // mostrar: quem vê a aba (a partir das permissões)
@@ -27,6 +28,7 @@ const ABAS = [
       { id: 'relatorios', nome: 'Relatórios de obra', mostrar: (p) => p.gestao }] },
   { id: 'equipes', nome: 'Equipes', mostrar: (p) => p.gestao },
   { id: 'frotas', nome: 'Frotas', mostrar: (p) => p.gestao },
+  { id: 'epi', nome: 'Estoque de EPI', mostrar: (p) => p.gestao },
   { id: 'financeiro', nome: 'Financeiro', mostrar: (p) => p.verFinanceiro },
   { id: 'rh', nome: 'RH & Ponto', mostrar: (p) => p.gestao, breve: 'Cadastro de funcionários, ponto diário e documentos.' },
   { id: 'aquisicao', nome: 'Aquisição', mostrar: (p) => p.admin, breve: 'Canais e funis de aquisição, investimento e retorno por canal.' },
@@ -173,6 +175,8 @@ function Painel({ usuario }) {
             <CalendarioObras dados={dados} tv={tv} setTv={setTv} avisar={avisar} pode={pode} />
           ) : atual.id === 'equipes' ? (
             <Equipe dados={dados} pode={pode} />
+          ) : atual.id === 'epi' ? (
+            <EstoqueEPI dados={dados} pode={pode} avisar={avisar} />
           ) : atual.id === 'frotas' ? (
             <Frotas dados={dados} />
           ) : atual.id === 'inicio' ? (

@@ -18,6 +18,9 @@ export function Relatorios({ dados, pode }) {
   const [filtro, setFiltro] = useState('todas');
   const [aberto, setAberto] = useState(null);
   const [novo, setNovo] = useState(null); // { dia, obra }
+  const [soRel, setSoRelState] = useState(() => { try { return localStorage.getItem('eql-rel-so') === '1'; } catch { return false; } });
+  const setSoRel = (v) => { setSoRelState(v); try { localStorage.setItem('eql-rel-so', v ? '1' : '0'); } catch { /* ignora */ } };
+  const [status, setStatus] = useState('todos'); // todos | andamento | entregues
   const relatorios = dados.relatorios || [];
 
   // índices por "demanda|dia"
@@ -48,6 +51,13 @@ export function Relatorios({ dados, pode }) {
     return { operando, parados, esperado, feitos, total: linhas.reduce((s, l) => s + l.rels.length, 0) };
   };
 
+  // "Somente relatórios": os relatórios do dia, do mais recente para o mais antigo
+  const idsObras = new Set(obras.map((d) => d.id));
+  const casaStatus = (r) => status === 'todos' || (status === 'andamento' ? r.status === 'rascunho' : r.status !== 'rascunho');
+  const relsDoDia = (dia) => relatorios
+    .filter((r) => r.dia === dia && idsObras.has(r.demanda_id) && casaStatus(r))
+    .sort((a, b) => (b.criado_em || '').localeCompare(a.criado_em || ''));
+
   // período visível
   const semanaIni = inicioSemana(ref);
   const temDomingo = (d) => dados.alocacoes.some((a) => a.dia === d) || relatorios.some((r) => r.dia === d);
@@ -77,6 +87,7 @@ export function Relatorios({ dados, pode }) {
             <button key={e.id} type="button" className={'pill' + (filtro === e.id ? ' on' : '')} aria-pressed={filtro === e.id}
               onClick={() => setFiltro(e.id)}>{e.curto}</button>
           ))}
+          <button type="button" className={'pill' + (soRel ? ' on' : '')} aria-pressed={soRel} onClick={() => setSoRel(!soRel)}>Somente relatórios</button>
           {pode.gestao && !dados.faltando.has('relatorios') && (
             <button type="button" className="pill lime" onClick={() => setNovo({ dia: modo === 'dia' && ref <= dia0 ? ref : dia0 })}>+ Adicionar relatório</button>
           )}
@@ -102,10 +113,48 @@ export function Relatorios({ dados, pode }) {
           <button type="button" className="pill" aria-label="Próximo" onClick={() => andar(1)}>›</button>
           {!ehAtual && <button type="button" className="pill ghost" onClick={() => setRef(dia0)}>Hoje</button>}
         </div>
-        <Legenda />
+        {soRel ? (
+          <div className="seg three rel-status" role="group" aria-label="Situação dos relatórios">
+            {[['todos', 'Todos'], ['andamento', 'Em andamento'], ['entregues', 'Entregues']].map(([id, nome]) => (
+              <button key={id} type="button" className={status === id ? 'on' : ''} aria-pressed={status === id} onClick={() => setStatus(id)}>{nome}</button>
+            ))}
+          </div>
+        ) : <Legenda />}
       </div>
 
-      {modo === 'semana' && (
+      {soRel && modo === 'semana' && (
+        <div className="rel-semana" style={{ '--n': diasSemana.length }}>
+          {diasSemana.map((d) => {
+            const rs = relsDoDia(d);
+            return (
+              <section key={d} className={'card rel-col' + (d === dia0 ? ' hoje' : '')} aria-label={fmt(d)}>
+                <button type="button" className="rel-col-head" onClick={() => abrirDia(d)} title="Ver o dia">
+                  <span className="rel-dia">{cap(diaSemana(d))} {fmt(d)}{d === dia0 && <em> · hoje</em>}</span>
+                  <ContaRel rs={rs} />
+                </button>
+                {rs.map((r) => <CartaoRel key={r.id} r={r} dados={dados} nomeFunc={nomeFunc} onAbrir={setAberto} compacto />)}
+                {!rs.length && <p className="empty">Nenhum relatório.</p>}
+              </section>
+            );
+          })}
+        </div>
+      )}
+      {soRel && modo === 'dia' && (() => {
+        const rs = relsDoDia(ref);
+        return (
+          <>
+            <div className="rel-dia-resumo"><ContaRel rs={rs} grande /></div>
+            {rs.length ? (
+              <div className="rel-grade-dia">
+                {rs.map((r) => <CartaoRel key={r.id} r={r} dados={dados} nomeFunc={nomeFunc} onAbrir={setAberto} />)}
+              </div>
+            ) : <p className="empty card">Nenhum relatório neste dia.</p>}
+          </>
+        );
+      })()}
+      {soRel && modo === 'mes' && <Mes refIso={ref} hojeIso={dia0} doDia={doDia} onDia={abrirDia} relsDoDia={relsDoDia} />}
+
+      {!soRel && modo === 'semana' && (
         <div className="rel-semana" style={{ '--n': diasSemana.length }}>
           {diasSemana.map((d) => {
             const x = doDia(d);
@@ -132,7 +181,7 @@ export function Relatorios({ dados, pode }) {
         </div>
       )}
 
-      {modo === 'dia' && (() => {
+      {!soRel && modo === 'dia' && (() => {
         const x = doDia(ref);
         return (
           <>
@@ -152,7 +201,7 @@ export function Relatorios({ dados, pode }) {
         );
       })()}
 
-      {modo === 'mes' && <Mes refIso={ref} hojeIso={dia0} doDia={doDia} onDia={abrirDia} />}
+      {!soRel && modo === 'mes' && <Mes refIso={ref} hojeIso={dia0} doDia={doDia} onDia={abrirDia} />}
 
       {novo && (
         <NovoRelatorio dados={dados} escritorio diaInicial={novo.dia} obraInicial={novo.obra} tipoInicial={novo.tipo} onFechar={() => setNovo(null)} />
@@ -272,7 +321,7 @@ function LinhaParada({ l, onAbrir }) {
   );
 }
 
-function Mes({ refIso, hojeIso, doDia, onDia }) {
+function Mes({ refIso, hojeIso, doDia, onDia, relsDoDia }) {
   const p = parse(refIso);
   const primeiro = iso(new Date(p.getFullYear(), p.getMonth(), 1));
   const ultimo = iso(new Date(p.getFullYear(), p.getMonth() + 1, 0));
@@ -284,6 +333,20 @@ function Mes({ refIso, hojeIso, doDia, onDia }) {
       {['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'].map((n) => <span key={n} className="rel-mes-dow">{n}</span>)}
       {dias.map((d) => {
         const fora = d < primeiro || d > ultimo;
+        if (relsDoDia) {
+          const rs = fora ? [] : relsDoDia(d);
+          const and = rs.filter((r) => r.status === 'rascunho').length;
+          return (
+            <button key={d} type="button" className={'rel-mes-dia' + (fora ? ' fora' : '') + (d === hojeIso ? ' hoje' : '')}
+              disabled={fora} onClick={() => onDia(d)} aria-label={`${fmt(d)}: ${rs.length} relatórios`}>
+              <span className="rel-mes-num">{Number(d.slice(8))}</span>
+              {rs.length > 0 && <span className="cal-mes-pins">
+                {rs.length - and > 0 && <span className="cm rel"><b>{rs.length - and}</b> {rs.length - and === 1 ? 'entregue' : 'entregues'}</span>}
+                {and > 0 && <span className="cm andamento"><b>{and}</b> em andamento</span>}
+              </span>}
+            </button>
+          );
+        }
         const x = fora ? null : doDia(d);
         const pct = x?.esperado ? Math.round((x.feitos / x.esperado) * 100) : 0;
         const ruim = x && d < hojeIso && x.esperado && pct < 100;
@@ -303,5 +366,39 @@ function Mes({ refIso, hojeIso, doDia, onDia }) {
         );
       })}
     </div>
+  );
+}
+
+function ContaRel({ rs, grande }) {
+  const and = rs.filter((r) => r.status === 'rascunho').length;
+  return (
+    <span className={'rel-resumo' + (grande ? ' grande' : '')}>
+      <span><b>{rs.length}</b> {rs.length === 1 ? 'relatório' : 'relatórios'}{and ? ` · ${and} em andamento` : ''}</span>
+    </span>
+  );
+}
+
+// Cartão de um relatório (visão "Somente relatórios")
+function CartaoRel({ r, dados, nomeFunc, onAbrir, compacto }) {
+  const obra = dados.demandas.find((d) => d.id === r.demanda_id);
+  const fotos = (r.arquivos || []).filter((a) => a.tipo !== 'video');
+  const andamento = r.status === 'rascunho';
+  const mostra = fotos.slice(0, compacto ? 4 : 8);
+  return (
+    <button type="button" className={'rel-card' + (compacto ? ' compacto' : '') + (andamento ? ' andamento' : '')} onClick={() => onAbrir(r)}>
+      <span className="rel-card-top">
+        <span className={'rel-pill ' + (andamento ? 'andamento' : 'enviado')}>{andamento ? 'Em andamento' : 'Entregue'}</span>
+        <span className="rel-card-hora">{hora(r.criado_em)}</span>
+      </span>
+      <span className="rel-card-obra"><span className="dot" style={{ background: empresaPorId[obra?.empresa]?.cor }} />{obra?.nome || 'Obra apagada'}</span>
+      <span className="rel-card-sub">{tipoRelatorio[r.tipo]?.nome}{r.funcionario_id ? ` · ${nomeFunc(r.funcionario_id)}` : ''} · {contagem(r)}</span>
+      {mostra.length > 0 && (
+        <span className="rel-card-fotos">
+          {mostra.map((a) => <img key={a.caminho} src={dados.urlArquivo(a.miniatura || a.caminho)} alt="" loading="lazy" />)}
+          {fotos.length > mostra.length && <span className="rel-mais">+{fotos.length - mostra.length}</span>}
+        </span>
+      )}
+      {!compacto && r.observacao && <span className="rel-tira-obs">“{r.observacao}”</span>}
+    </button>
   );
 }
