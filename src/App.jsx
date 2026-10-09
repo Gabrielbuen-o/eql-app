@@ -16,6 +16,7 @@ import { Relatorios } from './Relatorios.jsx';
 import { CalendarioObras } from './CalendarioObras.jsx';
 import { EstoqueEPI } from './EstoqueEPI.jsx';
 import { Orcamentos } from './Orcamentos.jsx';
+import { PortalCliente } from './PortalCliente.jsx';
 import { tipoRelatorio } from './lib.js';
 import { TITULOS, caminhoDaAba, lerCaminho, navegar, useCaminho } from './rota.js';
 
@@ -88,13 +89,14 @@ function Painel({ usuario }) {
   // endereço vazio, desconhecido ou sem permissão → corrige para a tela certa (sem criar "voltar")
   const certo = (tv ? '/tv' : '') + base + (resto.length ? '/' + resto.join('/') : '');
   useEffect(() => {
-    if (dados.carregando) return;
+    if (dados.carregando || pode.soCliente) return; // o portal do cliente cuida dos próprios endereços
     if (pode.soCampo) { if (caminho !== '/') navegar('/', { replace: true, forcar: true }); return; }
     if (caminho !== certo) navegar(certo, { replace: true, forcar: true });
-  }, [caminho, certo, dados.carregando, pode.soCampo]);
+  }, [caminho, certo, dados.carregando, pode.soCampo, pode.soCliente]);
   useEffect(() => {
+    if (pode.soCliente) return;
     document.title = pode.soCampo ? 'EQL Group' : `${TITULOS[idTela] || atual.nome} · EQL Group`;
-  }, [idTela, pode.soCampo]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [idTela, pode.soCampo, pode.soCliente]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // preferências salvas no perfil valem em qualquer aparelho
   const prefsPerfil = JSON.stringify(eu?.preferencias || {});
@@ -146,6 +148,11 @@ function Painel({ usuario }) {
     document.addEventListener('fullscreenchange', sair);
     return () => document.removeEventListener('fullscreenchange', sair);
   }, []);
+
+  // cliente (Help, Agplan…): portal próprio, sem menu do sistema
+  if (pode.soCliente) {
+    return dados.carregando ? <div className="login"><p className="empty">Carregando…</p></div> : <PortalCliente eu={eu} usuario={usuario} />;
+  }
 
   // pessoal de campo: uma tela só (obra do dia + novo relatório)
   if (pode.soCampo) {

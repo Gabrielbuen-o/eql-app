@@ -547,8 +547,8 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
             <input ref={vidRef} type="file" accept="video/*" hidden onChange={(e) => { escolherVideo(e.target.files[0]); e.target.value = ''; }} />
           </div>
 
-          <label className="field"><span>Observação (opcional)</span>
-            <textarea rows={3} value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Algo que o escritório precisa saber?" />
+          <label className="field"><span>Observação (opcional) · o cliente da obra também vê</span>
+            <textarea rows={3} value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Como foi o serviço hoje?" />
           </label>
 
           {erro && <div className="err" role="alert">{erro}</div>}

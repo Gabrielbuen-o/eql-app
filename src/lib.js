@@ -142,6 +142,7 @@ export function permissoes(papel) {
     verOperacao: papel !== 'cliente',        // agenda, equipes, frotas
     verFinanceiro: papel === 'admin',
     soCampo: papel === 'campo',              // app do campo: só a tela de relatórios
+    soCliente: papel === 'cliente',          // portal do cliente: obras, equipe e relatórios do grupo dele
   };
 }
 
