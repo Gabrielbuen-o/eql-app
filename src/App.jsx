@@ -17,6 +17,7 @@ import { CalendarioObras } from './CalendarioObras.jsx';
 import { EstoqueEPI } from './EstoqueEPI.jsx';
 import { Orcamentos } from './Orcamentos.jsx';
 import { PortalCliente } from './PortalCliente.jsx';
+import { AbasCelular, GavetaMenu, TopoCelular } from './MenuCelular.jsx';
 import { tipoRelatorio } from './lib.js';
 import { TITULOS, caminhoDaAba, lerCaminho, navegar, useCaminho } from './rota.js';
 
@@ -64,6 +65,7 @@ function Painel({ usuario }) {
   const tv = rota.tv;
   const setAba = (id) => navegar(caminhoDaAba(id));
   const [toast, setToast] = useState(null);
+  const [menuCelular, setMenuCelular] = useState(false);
   const avisar = useCallback((msg) => {
     setToast(msg);
     clearTimeout(window.__eqlToast);
@@ -195,7 +197,15 @@ function Painel({ usuario }) {
   }
 
   return (
-    <div className="page">
+    <div className={'page' + (tv ? '' : ' com-abas-celular')}>
+      {!tv && (
+        <>
+          <TopoCelular abas={abas} atual={atual} sub={sub} pode={pode} eu={eu} usuario={usuario} irAba={setAba} abrirMenu={() => setMenuCelular(true)} />
+          <AbasCelular abas={abas} atual={atual} irAba={setAba} />
+          <GavetaMenu aberto={menuCelular} fechar={() => setMenuCelular(false)} abas={abas} atual={atual} sub={sub} pode={pode} eu={eu} usuario={usuario}
+            papelTexto={pode.admin ? papelNome[papel] : (eu?.email || usuario.email)} irAba={setAba} />
+        </>
+      )}
       <div className="shell">
         {!tv && (
           <nav className="sidebar" aria-label="Menu principal">
