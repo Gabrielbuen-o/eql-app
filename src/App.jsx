@@ -276,14 +276,22 @@ function perfilComo(id, perfis, euReal) {
   return p && p.id !== euReal?.id ? p : null;
 }
 
+// Faixa fixa no topo enquanto o administrador vê o app como outra pessoa (cadeia abaixo).
+// Fica acima de tudo e empurra o conteúdo para baixo: não cobre botões nem atrapalha o uso.
 function FaixaComo({ como, sair }) {
+  useEffect(() => {
+    document.body.classList.add('com-faixa');
+    return () => document.body.classList.remove('com-faixa');
+  }, []);
+  const quem = como.nome || como.email;
+  const nivel = `${papelNome[como.papel]}${como.papel === 'cliente' && como.cliente_grupo ? ` · ${como.cliente_grupo}` : ''}`;
   return createPortal(
-    <div className="faixa-como" role="status">
-      <span>
-        <b>Vendo como {como.nome || como.email} · {papelNome[como.papel]}{como.papel === 'cliente' && como.cliente_grupo ? ` (${como.cliente_grupo})` : ''}</b>
-        <small>O que você fizer aqui é real e fica no seu nome.</small>
+    <div className="faixa-como" role="region" aria-label="Visualização de cadeia abaixo">
+      <span className="faixa-como-txt">
+        <span className="faixa-como-tag"><span className="faixa-longo">Visualização de </span>cadeia abaixo</span>
+        <span><span className="faixa-longo">Você está vendo</span><span className="faixa-curto">Vendo</span> como <b>{quem}</b> ({nivel})<span className="faixa-como-extra"> · não é a sua visão oficial; o que fizer aqui vale de verdade</span></span>
       </span>
-      <button type="button" className="pill lime" onClick={sair}>Voltar para a minha visão</button>
+      <button type="button" className="faixa-como-btn" onClick={sair}>Voltar para a minha visão</button>
     </div>,
     document.body,
   );

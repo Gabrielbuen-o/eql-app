@@ -1430,14 +1430,32 @@ button.epi-ficha-tag { cursor: pointer; }
 .cli-acoes { display: flex; gap: 12px; }
 @media (max-width: 560px) { .cli-lista li { grid-template-columns: 1fr; gap: 4px; } }
 
-/* ---------- Ver como (administradores) ---------- */
-.faixa-como { position: fixed; right: 16px; bottom: 16px; z-index: 200; display: flex; align-items: center; gap: 14px; max-width: calc(100vw - 32px);
-  background: #14161A; color: #fff; padding: 10px 10px 10px 16px; border-radius: 18px; box-shadow: 0 10px 30px rgba(0, 0, 0, .3); font-size: 13px; }
-.faixa-como span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.faixa-como small { color: rgba(255, 255, 255, .7); font-size: 12px; }
-.faixa-como .pill { flex: none; }
+/* ---------- Ver como (administradores): faixa fixa no topo ---------- */
+:root { --faixa-h: 0px; }
+body.com-faixa { --faixa-h: 48px; padding-top: var(--faixa-h); }
+.faixa-como { position: fixed; top: 0; left: 0; right: 0; height: 48px; z-index: 1000; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 0 max(12px, env(safe-area-inset-left)) 0 max(12px, env(safe-area-inset-left)); padding-top: env(safe-area-inset-top);
+  background: repeating-linear-gradient(135deg, #FFC83D 0 14px, #FFBF1F 14px 28px); color: #1B1300; border-bottom: 2px solid #1B1300; font-size: 13px; }
+.faixa-como-txt { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.faixa-como-txt > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.faixa-como-tag { flex: none; background: #1B1300; color: #FFC83D; font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; padding: 4px 8px; border-radius: 6px; }
+.faixa-como-btn { flex: none; border: 0; background: #1B1300; color: #fff; font-weight: 800; font-size: 13px; border-radius: 999px; padding: 0 14px; min-height: 34px; }
+.faixa-como-btn:hover { background: #3a2c00; }
+/* tudo que é fixo/grudado no topo desce para baixo da faixa */
+body.com-faixa .sidebar { top: calc(var(--faixa-h) + 12px); height: calc(100vh - var(--faixa-h) - 24px); }
+body.com-faixa .shell { min-height: calc(100vh - var(--faixa-h) - 24px); }
+body.com-faixa .pc-topo, body.com-faixa .campo-topo { top: var(--faixa-h); }
+body.com-faixa .overlay, body.com-faixa .campo-folha, body.com-faixa .cam, body.com-faixa .rel-luz, body.com-faixa .apr { top: var(--faixa-h); }
+.faixa-curto { display: none; }
+@media (max-width: 760px) {
+  .faixa-como-extra, .faixa-longo { display: none; }
+  .faixa-curto { display: inline; }
+  .faixa-como-txt { gap: 6px; }
+  .faixa-como-tag { padding: 3px 6px; font-size: 10px; }
+  .faixa-como-btn { padding: 0 12px; font-size: 12px; }
+}
+@media (max-width: 420px) { .faixa-como-btn { font-size: 0; } .faixa-como-btn::after { content: 'Voltar'; font-size: 12px; } }
 .ver-como-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--soft); border-radius: var(--radius-m); padding: 10px 12px; font-size: 13px; font-weight: 600; }
-@media (max-width: 560px) { .faixa-como { left: 8px; right: 8px; bottom: 8px; flex-direction: column; align-items: stretch; } }
 
 /* ---------- Relatório por etapas (RFI) ---------- */
 .rfi-resumo { display: flex; flex-direction: column; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-l); padding: 12px 14px; position: sticky; top: 0; z-index: 3; }
