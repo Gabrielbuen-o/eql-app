@@ -34,7 +34,7 @@ const ABAS = [
   { id: 'frotas', nome: 'Frotas', mostrar: (p) => p.gestao },
   { id: 'epi', nome: 'Estoque de EPI', mostrar: (p) => p.gestao },
   { id: 'financeiro', nome: 'Financeiro', mostrar: (p) => p.verFinanceiro },
-  { id: 'rh', nome: 'RH & Ponto', mostrar: (p) => p.gestao, breve: 'Cadastro de funcionários, ponto diário e documentos.' },
+  { id: 'rh', nome: 'RH & Ponto', mostrar: (p) => p.admin, breve: 'Cadastro de funcionários, ponto diário e documentos.' },
   { id: 'aquisicao', nome: 'Aquisição', mostrar: (p) => p.admin, breve: 'Canais e funis de aquisição, investimento e retorno por canal.' },
   { id: 'config', nome: 'Configurações', mostrar: () => true },
 ];

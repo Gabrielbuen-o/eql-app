@@ -1,3 +1,4 @@
+import { useLargura } from './useLargura.js';
 import { useEffect, useMemo, useState } from 'react';
 import { PainelFinanceiro, useMesFinanceiro, useResumoFinanceiro } from './PainelFinanceiro.jsx';
 import { brl } from './custos.js';
@@ -313,13 +314,14 @@ function GraficoEntregas({ abertas, dia }) {
   const max = Math.max(4, ...colunas.map((c) => c.itens.length));
   const passo = max <= 6 ? 1 : max <= 12 ? 2 : 5;
   const topo = Math.ceil(max / passo) * passo;
-  const W = 680, H = 230, padL = 28, padB = 30, padT = 18;
+  const [caixa, largura] = useLargura(680);
+  const W = Math.max(420, largura), H = 230, padL = 28, padB = 30, padT = 18;
   const bw = (W - padL) / colunas.length;
   const y = (v) => H - padB - (v / topo) * (H - padB - padT);
   const sem = abertas.filter((d) => !d.entrega).length;
 
   return (
-    <div className="chart-box">
+    <div className="chart-box" ref={caixa}>
       <Legenda itens={EMPRESAS.map((e) => ({ nome: e.curto, cor: e.cor }))} />
       <svg viewBox={`0 0 ${W} ${H}`} className="chart" role="img" aria-label="Gráfico de entregas por semana">
         {Array.from({ length: topo / passo + 1 }, (_, i) => i * passo).map((v) => (
@@ -329,7 +331,7 @@ function GraficoEntregas({ abertas, dia }) {
           </g>
         ))}
         {colunas.map((c, i) => {
-          const x = padL + i * bw + bw * 0.18, w = bw * 0.64;
+          const w = Math.min(bw * 0.64, 64), x = padL + i * bw + (bw - w) / 2;
           let acc = 0;
           const segs = EMPRESAS.map((e) => ({ e, n: c.itens.filter((d) => d.empresa === e.id).length })).filter((s) => s.n);
           return (
@@ -384,13 +386,14 @@ function GraficoOcupacao({ dados, ativos, dia }) {
 
   const vals = dias.map((d) => porDia.m[d]?.size || 0);
   const topo = Math.max(4, ativos, ...vals);
-  const W = 640, H = 230, padL = 28, padB = 30, padT = 18;
+  const [caixa, largura] = useLargura(680);
+  const W = Math.max(420, largura), H = 230, padL = 28, padB = 30, padT = 18;
   const bw = (W - padL) / dias.length;
   const y = (v) => H - padB - (v / topo) * (H - padB - padT);
   const passo = topo <= 8 ? 2 : topo <= 20 ? 5 : 10;
 
   return (
-    <div className="chart-box">
+    <div className="chart-box" ref={caixa}>
       <Legenda itens={[{ nome: 'Realizado', cor: 'var(--brand)' }, { nome: 'Planejado', cor: 'var(--brand-plan)' }, { nome: 'Equipe ativa', cor: 'var(--muted)' }]} />
       <svg viewBox={`0 0 ${W} ${H}`} className="chart" role="img" aria-label="Gráfico de pessoas em campo por dia">
         {Array.from({ length: Math.floor(topo / passo) + 1 }, (_, i) => i * passo).map((v) => (
@@ -407,7 +410,7 @@ function GraficoOcupacao({ dados, ativos, dia }) {
         )}
         {dias.map((d, i) => {
           const v = vals[i];
-          const x = padL + i * bw + bw * 0.2, w = bw * 0.6;
+          const w = Math.min(bw * 0.6, 40), x = padL + i * bw + (bw - w) / 2;
           const ehHoje = d === dia, futuro = d > dia;
           return (
             <g key={d} onMouseEnter={(ev) => tip.mostrar(ev, (

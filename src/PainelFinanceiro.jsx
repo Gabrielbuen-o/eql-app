@@ -1,3 +1,4 @@
+import { useLargura } from './useLargura.js';
 import { useMemo, useState } from 'react';
 import { EMPRESAS, empresaPorId, iso, parse } from './lib.js';
 import { brl, custoAtual, pctFmt, resultadoDemanda, tipoCustoNome } from './custos.js';
@@ -139,11 +140,12 @@ function GraficoFaturamento({ meses, atual }) {
   const max = Math.max(1, ...meses.map((m) => m.total));
   const passo = escala(max);
   const topo = Math.ceil(max / passo) * passo;
-  const W = 680, H = 240, padL = 64, padB = 30, padT = 22;
+  const [caixa, largura] = useLargura(680);
+  const W = Math.max(420, largura), H = 240, padL = 64, padB = 30, padT = 22;
   const bw = (W - padL) / meses.length;
   const y = (v) => H - padB - (v / topo) * (H - padB - padT);
   return (
-    <div className="chart-box">
+    <div className="chart-box" ref={caixa}>
       <Legenda itens={EMPRESAS.map((e) => ({ nome: e.curto, cor: e.cor }))} />
       <svg viewBox={`0 0 ${W} ${H}`} className="chart" role="img" aria-label="Faturamento dos últimos 6 meses">
         {Array.from({ length: Math.round(topo / passo) + 1 }, (_, i) => i * passo).map((v) => (
@@ -153,7 +155,7 @@ function GraficoFaturamento({ meses, atual }) {
           </g>
         ))}
         {meses.map((m, i) => {
-          const x = padL + i * bw + bw * 0.22, w = bw * 0.56;
+          const w = Math.min(bw * 0.56, 72), x = padL + i * bw + (bw - w) / 2;
           const segs = m.porEmpresa.filter((s) => s.v > 0);
           let acc = 0;
           return (

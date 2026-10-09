@@ -317,7 +317,7 @@ a { color: var(--brand-text); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
 .grid-wrap { overflow-x: auto; border-radius: var(--radius-m); border: 1px solid var(--line); }
-table.cal { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 900px; }
+table.cal { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 900px; table-layout: fixed; } /* dias com a mesma largura */
 .cal th, .cal td { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); vertical-align: top; }
 .cal th:last-child, .cal td:last-child { border-right: 0; }
 .cal thead th { background: var(--soft); padding: 10px; text-align: left; font-size: 12px; position: sticky; top: 0; }
@@ -397,6 +397,18 @@ table.cal { border-collapse: separate; border-spacing: 0; width: 100%; min-width
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 120;
   background: var(--ink); color: var(--on-ink); padding: 12px 18px; border-radius: 14px; font-weight: 600; max-width: calc(100% - 32px);
 }
+
+/* ---------- Computador: tela cheia ----------
+   O menu fica fixo à esquerda (mesma largura e no mesmo lugar ao rolar a página ou mudar o zoom);
+   o conteúdo ocupa todo o resto da tela e cresce junto com ela. */
+@media (min-width: 900px) {
+  .page { padding: 12px; }
+  .shell { max-width: none; flex-wrap: nowrap; min-height: calc(100vh - 24px); overflow: clip; }
+  .sidebar { flex: 0 0 248px; width: 248px; position: sticky; top: 12px; align-self: flex-start;
+    height: calc(100vh - 24px); overflow-y: auto; border-radius: var(--radius-xl) 0 0 var(--radius-xl); }
+  .main { flex: 1 1 auto; padding: 28px 32px; }
+}
+@media (min-width: 1800px) { .main { padding: 32px 40px; } }
 
 /* ---------- Modo TV ---------- */
 .tv .page { padding: 0; }
