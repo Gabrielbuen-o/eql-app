@@ -1,3 +1,4 @@
+import { listaClientes } from './ClienteCampo.jsx';
 import { useMemo, useState } from 'react';
 import { EMPRESAS, PRODUTOS_EKO, faseNome, fmt, hoje, ehProducao, ordemGrupo, percentual, resumoProducao, rotuloPrazo, situacao } from './lib.js';
 import { DemandaModal } from './DemandaModal.jsx';
@@ -144,7 +145,7 @@ export function Demandas({ dados, tv, setTv, avisar, pode, custos, modo = 'geral
 
 
       {editando && (
-        <DemandaModal inicial={editando} grupos={grupos} onFechar={() => setEditando(null)}
+        <DemandaModal inicial={editando} grupos={grupos} clientes={listaClientes(dados)} criarCliente={pode.gestao && !dados.faltando.has('clientes') ? dados.criarCliente : null} onFechar={() => setEditando(null)}
           onSalvar={dados.salvarDemanda} onExcluir={dados.excluirDemanda}
           limitado={!pode.gestao} perfis={dados.perfis}
           financeiro={pode.admin && custos ? { dados, porDemanda: custos } : null} />

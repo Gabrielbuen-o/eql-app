@@ -19,6 +19,7 @@ const TABELAS = {
   epi_movimentos: ['criado_em', true, false],
   orcamentos: ['criado_em', false, false],
   orcamento_parametros: ['versao', true, false],
+  clientes: ['nome', true, false],
 };
 const NOMES = Object.keys(TABELAS);
 
@@ -154,8 +155,9 @@ export function useData(avisar, userId) {
     const { id } = d;
     const campos = Object.fromEntries(Object.entries(d).filter(([k]) => CAMPOS_DEMANDA.includes(k)));
     if (id && !Object.keys(campos).length) return true;
-    if (id) { const ok = await atualizar('demandas', id, campos); recarregar('demandas'); return ok; }
-    return inserir('demandas', campos, false);
+    // o banco pode criar o cliente sozinho (nome repetido em 2 obras) e acerta o nome oficial
+    if (id) { const ok = await atualizar('demandas', id, campos); recarregar('demandas'); recarregar('clientes'); return ok; }
+    const ok = await inserir('demandas', campos, false); recarregar('clientes'); return ok;
   };
   const excluirDemanda = async (id) => {
     setTabela('alocacoes', (xs) => xs.filter((x) => x.demanda_id !== id));
@@ -274,6 +276,16 @@ export function useData(avisar, userId) {
   };
   const atualizarMovimentoEpi = (id, campos) => atualizar('epi_movimentos', id, campos);
   const apagarMovimentoEpi = (id) => apagar('epi_movimentos', id);
+  // Clientes (Help, Agplan…): lista única usada nas obras, fábrica, orçamentos e portal
+  const criarCliente = async (nome) => {
+    const n = (nome || '').trim();
+    if (!n) return null;
+    const ex = dbRef.current.clientes.find((c) => c.nome.trim().toLowerCase() === n.toLowerCase());
+    if (ex) return ex.nome;
+    const ok = await inserir('clientes', { nome: n }, false);
+    return ok ? n : null;
+  };
+  const atualizarCliente = (id, campos) => atualizar('clientes', id, campos).then((ok) => { if (ok && campos.nome) { recarregar('demandas'); recarregar('perfis'); recarregar('orcamentos'); } return ok; });
   const salvarFrase = (texto) => inserir('frases', { texto, ativo: true }, false);
   const alternarFrase = (id, ativo) => atualizar('frases', id, { ativo });
   const apagarFrase = (id) => apagar('frases', id);
@@ -290,7 +302,7 @@ export function useData(avisar, userId) {
     enviarArquivo, urlArquivo, salvarRelatorio, apagarRelatorio, salvarFrase, alternarFrase, apagarFrase,
     salvarItemEpi, movimentarEpi, atualizarMovimentoEpi, apagarMovimentoEpi,
     atualizarPerfil, enviarFoto,
-    salvarDemanda, excluirDemanda,
+    salvarDemanda, excluirDemanda, criarCliente, atualizarCliente,
     adicionarFuncionario, atualizarFuncionario, salvarVeiculo,
     alocar, moverAlocacao, removerAlocacao, inserirAlocacoes,
     marcarAusencia, marcarPeriodo, removerAusencia,
@@ -305,7 +317,7 @@ function limiteDias() {
 }
 
 // recursos que dependem de arquivos SQL opcionais: não geram aviso ao carregar
-const OPCIONAIS = ['custos_funcionarios', 'financeiro_demandas', 'custos_lancamentos', 'relatorios', 'frases', 'epi_itens', 'epi_movimentos', 'orcamentos', 'orcamento_parametros'];
+const OPCIONAIS = ['custos_funcionarios', 'financeiro_demandas', 'custos_lancamentos', 'relatorios', 'frases', 'epi_itens', 'epi_movimentos', 'orcamentos', 'orcamento_parametros', 'clientes'];
 
 const CAMPOS_DEMANDA = ['empresa', 'grupo', 'nome', 'descricao', 'fase', 'percentual', 'inicio', 'entrega', 'pagamento',
   'qtd_total', 'qtd_produzida', 'unidade', 'arquivada', 'produto', 'especificacao'];

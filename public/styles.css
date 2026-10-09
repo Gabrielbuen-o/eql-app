@@ -1408,3 +1408,24 @@ button.epi-ficha-tag { cursor: pointer; }
   .pc-rel-mini img { width: 48px; height: 48px; }
   .pc-obra-tit h1 { font-size: 24px; }
 }
+
+/* ---------- Escolher cliente ---------- */
+.span-tudo { grid-column: 1 / -1; }
+.cli-campo { gap: 8px; }
+.cli-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cli-chip { border: 1px solid var(--line-strong); background: var(--card); border-radius: 999px; padding: 0 14px; min-height: 38px; font-weight: 600; font-size: 13px; }
+.cli-chip:hover:not(:disabled) { border-color: var(--brand); }
+.cli-chip.on { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+.cli-chip.vazio:not(.on), .cli-chip.outro:not(.on) { border-style: dashed; color: var(--text-2); }
+.cli-chip:disabled { opacity: .55; cursor: default; }
+.cli-dica { color: var(--muted); font-size: 12px; }
+.cli-novo { display: flex; flex-direction: column; gap: 8px; background: var(--yellow-soft); border: 1px solid var(--yellow-line); border-radius: var(--radius-m); padding: 10px 12px; font-size: 13px; font-weight: 600; }
+.cli-novo small { font-weight: 500; color: var(--text-2); font-size: 12px; }
+.cli-novo-acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.cli-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.cli-lista li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+.cli-lista li.off { opacity: .55; }
+.cli-nome { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cli-auto { font-size: 11px; font-weight: 700; color: var(--muted); background: var(--chip); border-radius: 999px; padding: 2px 8px; }
+.cli-acoes { display: flex; gap: 12px; }
+@media (max-width: 560px) { .cli-lista li { grid-template-columns: 1fr; gap: 4px; } }

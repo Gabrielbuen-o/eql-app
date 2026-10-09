@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { hoje } from '../lib.js';
 import { useBloqueioSaida } from '../rota.js';
+import { ClienteCampo, listaClientes } from '../ClienteCampo.jsx';
 import {
   ESCOPOS, NOME, PARAMETROS_INICIAIS, STATUS, brl, calcular, entradaInicial, fmtM, fmtN, pct, resumo, statusNome,
 } from './muros.js';
@@ -138,7 +139,6 @@ export function OrcamentoMuros({ dados, eu, orcamento, novoId: idDado, parametro
   const voltar = () => onVoltar();
 
   const g = entrada.geometria, pr = entrada.prazo, cd = entrada.condicoes, cm = entrada.comercial;
-  const clientes = useMemo(() => [...new Set([...(dados.orcamentos || []).map((o) => o.cliente), ...dados.demandas.map((d) => d.grupo)].filter(Boolean))].sort(), [dados.orcamentos, dados.demandas]);
   const novaTabela = parametrosVigentes && paramsVersao != null && parametrosVigentes.versao > paramsVersao;
   const resolvidas = Object.entries(cm.resolvidas || {});
 
@@ -181,8 +181,8 @@ export function OrcamentoMuros({ dados, eu, orcamento, novoId: idDado, parametro
           <section className="card stack">
             <h2 className="card-title">Identificação</h2>
             <div className="orc-campos">
-              <label className="field c2"><span>Cliente</span><input list="orc-clientes" value={entrada.cliente} onChange={(e) => set('cliente', e.target.value)} placeholder="Nome do cliente" />
-                <datalist id="orc-clientes">{clientes.map((c) => <option key={c} value={c} />)}</datalist></label>
+              <ClienteCampo className="span-tudo" valor={entrada.cliente} onChange={(v) => set('cliente', v)} clientes={listaClientes(dados)} autoFocus={false}
+                criarCliente={dados.faltando?.has('clientes') ? null : dados.criarCliente} disabled={travado} />
               <label className="field"><span>Contato</span><input value={entrada.contato} onChange={(e) => set('contato', e.target.value)} placeholder="Nome" /></label>
               <label className="field"><span>WhatsApp / telefone</span><input value={entrada.telefone} onChange={(e) => set('telefone', e.target.value)} inputMode="tel" placeholder="(11) 9…" /></label>
               <label className="field c2"><span>Projeto</span><input value={entrada.projeto} onChange={(e) => set('projeto', e.target.value)} placeholder="Ex.: Muro de divisa — Galpão Norte" /></label>

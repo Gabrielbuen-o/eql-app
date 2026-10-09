@@ -1,3 +1,4 @@
+import { listaClientes } from './ClienteCampo.jsx';
 import { useRef, useState } from 'react';
 import { Atividades } from './Atividades.jsx';
 import { FRASES_PADRAO, PAPEIS, PREFS_PADRAO, hoje, mensagemDoDia, papelNome, reduzirImagem, supabase, tempoRelativo } from './lib.js';
@@ -55,6 +56,7 @@ export function Configuracoes({ dados, eu, usuario, pode, salvarPrefs, avisar })
       </div>
 
       {pode.verOperacao && !semPerfis && <Usuarios dados={dados} eu={eu} pode={pode} avisar={avisar} verAtividades={verAtividades} />}
+      {pode.admin && <Clientes dados={dados} avisar={avisar} />}
       {pode.admin && <Frases dados={dados} />}
       {pode.admin && !semPerfis && <Atividades dados={dados} filtroUsuario={filtroLog} setFiltroUsuario={setFiltroLog} />}
     </>
@@ -156,7 +158,7 @@ function LinhaUsuario({ p, dados, online, admin, eu, avisar, verAtividades }) {
     const ok = await dados.atualizarPerfil(p.id, { papel, cliente_grupo: papel === 'cliente' ? grupo || null : null });
     if (ok) avisar(`${p.nome || p.email} agora é ${papelNome[papel]}.`);
   };
-  const grupos = [...new Set(dados.demandas.map((d) => d.grupo).filter(Boolean))].sort();
+  const grupos = listaClientes(dados);
 
   return (
     <div className="user-row">
@@ -180,10 +182,12 @@ function LinhaUsuario({ p, dados, online, admin, eu, avisar, verAtividades }) {
         )}
         {admin && p.papel === 'cliente' && (
           <>
-            <input className="input" list="grupos-clientes" placeholder="Grupo que ele vê (ex.: Help)" aria-label="Grupo do cliente"
-              value={grupo} onChange={(e) => setGrupo(e.target.value)}
-              onBlur={() => grupo !== (p.cliente_grupo || '') && dados.atualizarPerfil(p.id, { cliente_grupo: grupo || null })} />
-            <datalist id="grupos-clientes">{grupos.map((g) => <option key={g} value={g} />)}</datalist>
+            {/* o cliente só vê as obras deste cliente no portal */}
+            <select className="input" aria-label="Cliente que ele vê" value={grupo}
+              onChange={(e) => { setGrupo(e.target.value); dados.atualizarPerfil(p.id, { cliente_grupo: e.target.value || null }); }}>
+              <option value="">Cliente: escolha…</option>
+              {[...grupos, ...(grupo && !grupos.includes(grupo) ? [grupo] : [])].map((g) => <option key={g} value={g}>Cliente: {g}</option>)}
+            </select>
           </>
         )}
         {admin && p.papel === 'campo' && (
@@ -211,6 +215,63 @@ function lerPrefs() {
 }
 
 // Frases do dia (aparecem para o campo e no Início): administradores cadastram
+// ---------- Clientes (Help, Agplan…) ----------
+function Clientes({ dados, avisar }) {
+  const [novo, setNovo] = useState('');
+  const [editando, setEditando] = useState(null); // { id, nome }
+  const falta = dados.faltando.has('clientes');
+  const lista = [...(dados.clientes || [])].sort((a, b) => (a.ativo === false) - (b.ativo === false) || a.nome.localeCompare(b.nome, 'pt-BR'));
+  const obras = (nome) => dados.demandas.filter((d) => (d.grupo || '').trim().toLowerCase() === nome.trim().toLowerCase()).length;
+  const acessos = (nome) => dados.perfis.filter((p) => p.papel === 'cliente' && (p.cliente_grupo || '').trim().toLowerCase() === nome.trim().toLowerCase()).length;
+  const adicionar = async () => { const n = await dados.criarCliente(novo); if (n) { setNovo(''); avisar(`Cliente “${n}” cadastrado.`); } };
+  const renomear = async () => {
+    const n = editando.nome.trim(); const c = lista.find((x) => x.id === editando.id);
+    if (!n || n === c.nome) { setEditando(null); return; }
+    if (lista.some((x) => x.id !== c.id && x.nome.trim().toLowerCase() === n.toLowerCase())) { avisar(`Já existe um cliente “${n}”.`); return; }
+    if (!window.confirm(`Renomear “${c.nome}” para “${n}”? Muda também nas obras, nos orçamentos em aberto e no acesso dos usuários desse cliente.`)) return;
+    if (await dados.atualizarCliente(c.id, { nome: n })) { setEditando(null); avisar('Cliente renomeado em todo o sistema.'); }
+  };
+  return (
+    <section className="card stack" aria-label="Clientes">
+      <div>
+        <h2 className="card-title">Clientes</h2>
+        <p className="note">Aparecem para escolher ao criar obras, pedidos da fábrica e orçamentos. Um nome novo usado em 2 obras entra aqui sozinho.</p>
+      </div>
+      {falta ? (
+        <p className="note">Para ter a lista de clientes, rode no Supabase o arquivo <b>16_clientes.sql</b>.</p>
+      ) : (
+        <>
+          <div className="row" style={{ flexWrap: 'nowrap' }}>
+            <input className="input" style={{ flex: 1 }} placeholder="Ex.: Radial" maxLength={80} value={novo}
+              onChange={(e) => setNovo(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && novo.trim() && adicionar()} aria-label="Novo cliente" />
+            <button type="button" className="pill lime" disabled={!novo.trim()} onClick={adicionar}>Adicionar</button>
+          </div>
+          <ul className="cli-lista">
+            {lista.map((c) => (
+              <li key={c.id} className={c.ativo === false ? 'off' : ''}>
+                {editando?.id === c.id ? (
+                  <input className="input" autoFocus value={editando.nome} onChange={(e) => setEditando({ ...editando, nome: e.target.value })}
+                    onKeyDown={(e) => { if (e.key === 'Enter') renomear(); if (e.key === 'Escape') setEditando(null); }} aria-label={`Novo nome de ${c.nome}`} />
+                ) : (
+                  <span className="cli-nome"><b>{c.nome}</b>{c.origem === 'automatico' && <small className="cli-auto">criado sozinho</small>}</span>
+                )}
+                <span className="note">{obras(c.nome)} {obras(c.nome) === 1 ? 'obra' : 'obras'}{acessos(c.nome) ? ` · ${acessos(c.nome)} no portal` : ''}</span>
+                <span className="cli-acoes">
+                  {editando?.id === c.id
+                    ? <><button type="button" className="link-btn" onClick={renomear}>Salvar</button><button type="button" className="link-btn" onClick={() => setEditando(null)}>Cancelar</button></>
+                    : <><button type="button" className="link-btn" onClick={() => setEditando({ id: c.id, nome: c.nome })}>Renomear</button>
+                      <button type="button" className="link-btn" onClick={() => dados.atualizarCliente(c.id, { ativo: c.ativo === false })}>{c.ativo === false ? 'Mostrar' : 'Esconder'}</button></>}
+                </span>
+              </li>
+            ))}
+            {!lista.length && <li className="note">Nenhum cliente cadastrado.</li>}
+          </ul>
+        </>
+      )}
+    </section>
+  );
+}
+
 function Frases({ dados }) {
   const [texto, setTexto] = useState('');
   const [aberto, setAberto] = useState(false);

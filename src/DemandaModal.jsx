@@ -1,3 +1,4 @@
+import { ClienteCampo } from './ClienteCampo.jsx';
 import { useEffect, useState } from 'react';
 import { CustosObra } from './CustosObra.jsx';
 import { EMPRESAS, PAGAMENTOS, PRODUTOS_EKO, empresaPorId, fasesDe, resumoProducao, tempoRelativo } from './lib.js';
@@ -10,7 +11,7 @@ const VAZIA = {
   produto: '', especificacao: '',
 };
 
-export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, limitado = false, perfis = [], financeiro = null }) {
+export function DemandaModal({ inicial, grupos, clientes = [], criarCliente = null, onFechar, onSalvar, onExcluir, limitado = false, perfis = [], financeiro = null }) {
   const [aba, setAba] = useState('dados');
   const novo = !inicial?.id;
   const [d, setD] = useState(() => ({ ...VAZIA, ...inicial, inicio: inicial?.inicio || '', entrega: inicial?.entrega || '', qtd_total: inicial?.qtd_total ?? '' }));
@@ -63,7 +64,6 @@ export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, l
   };
 
   const somar = (n) => set('qtd_produzida')(Math.max(0, (Number(d.qtd_produzida) || 0) + n));
-  const empresaGrupos = grupos[d.empresa] || [];
   const autor = perfis.find((p) => p.id === inicial?.atualizado_por)?.nome;
   const L = limitado; // acesso de campo: só andamento, fase e produção
 
@@ -103,10 +103,8 @@ export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, l
 
         {producao ? (
           <div className="grid2">
-            <label className="field"><span>Cliente</span>
-              <input autoFocus={novo} disabled={L} list="grupos-lista" value={d.grupo} onChange={(e) => set('grupo')(e.target.value)} placeholder="Ex.: Construtora X (vazio = para estoque)" />
-              <datalist id="grupos-lista">{empresaGrupos.filter((g) => g !== 'Estoque').map((g) => <option key={g} value={g} />)}</datalist>
-            </label>
+            <ClienteCampo className="span-tudo" valor={d.grupo} onChange={set('grupo')} clientes={clientes} criarCliente={criarCliente}
+              disabled={L} vazio="Para estoque" autoFocus={false} />
             <label className="field"><span>Empresa</span>
               <select disabled={L} value={d.empresa} onChange={(e) => mudarEmpresa(e.target.value)}>
                 {EMPRESAS.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
@@ -142,10 +140,8 @@ export function DemandaModal({ inicial, grupos, onFechar, onSalvar, onExcluir, l
                 {EMPRESAS.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
               </select>
             </label>
-            <label className="field"><span>Cliente / grupo</span>
-              <input disabled={L} list="grupos-lista" value={d.grupo} onChange={(e) => set('grupo')(e.target.value)} placeholder="Ex.: Obras civis, Help, Agplan" />
-              <datalist id="grupos-lista">{empresaGrupos.map((g) => <option key={g} value={g} />)}</datalist>
-            </label>
+            <ClienteCampo className="span-tudo" valor={d.grupo} onChange={set('grupo')} clientes={clientes} criarCliente={criarCliente}
+              disabled={L} vazio="Sem cliente" />
             <label className="field"><span>Descrição</span>
               <input disabled={L} value={d.descricao || ''} onChange={(e) => set('descricao')(e.target.value)} placeholder="Ex.: Obra, Telecom, 30 kg · 30 MPa" />
             </label>
