@@ -14,6 +14,20 @@ const CATEGORIAS = [
 ];
 const nomeCat = Object.fromEntries(CATEGORIAS.map((c) => [c.id, c.nome]));
 
+// orçamentos guardados só neste aparelho (começados e ainda não gravados no sistema)
+function rascunhosLocais() {
+  const out = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k?.startsWith('eql-orc-rascunho:')) continue;
+      const d = JSON.parse(localStorage.getItem(k) || 'null');
+      if (d) out.push({ id: k.slice(17), ts: d.ts, cliente: d.cliente, projeto: d.projeto });
+    }
+  } catch { /* ignora */ }
+  return out.sort((a, b) => b.ts - a.ts);
+}
+
 // Endereços: /orcamentos · /orcamentos/novo/muros · /orcamentos/ORC-2026-0012 (ou o id, antes de ganhar número)
 export function Orcamentos({ dados, eu, pode, avisar, resto = [], irSub = () => {} }) {
   const [escolher, setEscolher] = useState(false);
@@ -39,7 +53,8 @@ export function Orcamentos({ dados, eu, pode, avisar, resto = [], irSub = () => 
   useEffect(() => { if (orc && chave !== token(orc)) irSub(token(orc), { replace: true }); }, [orc?.id, orc?.numero, chave]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (ehNovo || chave) {
-    if (chave && !orc && chave !== idNovo) {
+    const soNoAparelho = chave && !orc && rascunhosLocais().some((d) => d.id === chave);
+    if (chave && !orc && chave !== idNovo && !soNoAparelho) {
       return (
         <section className="card placeholder">
           <h2 style={{ fontSize: 20, fontWeight: 800 }}>Orçamento não encontrado</h2>
@@ -49,7 +64,7 @@ export function Orcamentos({ dados, eu, pode, avisar, resto = [], irSub = () => 
       );
     }
     if (ehNovo && !idNovo) return null;
-    const id = orc ? orc.id : idNovo; // recém-salvo e ainda chegando do banco: continua na mesma tela
+    const id = orc ? orc.id : soNoAparelho ? chave : idNovo; // recém-salvo / só neste aparelho: continua na mesma tela
     return (
       <OrcamentoMuros key={id} novoId={id} dados={dados} eu={eu} orcamento={orc} parametrosVigentes={vigente || { versao: null, parametros: PARAMETROS_INICIAIS }}
         onVoltar={() => irSub(null)} onAbrir={(nid) => setAberto(nid, { forcar: true })} onSalvo={(sid) => irSub(sid, { replace: true, forcar: true })} avisar={avisar} />
@@ -88,6 +103,23 @@ export function Orcamentos({ dados, eu, pode, avisar, resto = [], irSub = () => 
           <span>Rode o arquivo <b>14_orcamentos.sql</b> no SQL Editor do Supabase (igual aos outros).</span>
         </section>
       )}
+
+      {(() => {
+        const locais = rascunhosLocais().filter((d) => !lista.some((o) => o.id === d.id));
+        return locais.length > 0 && (
+          <section className="card orc-locais" role="status">
+            <strong>{locais.length === 1 ? 'Um orçamento ficou só neste aparelho' : `${locais.length} orçamentos ficaram só neste aparelho`}</strong>
+            <span className="note">Começou e não chegou a ser gravado no sistema (sem internet ou o computador fechou). Abra para terminar: ele grava sozinho.</span>
+            <div className="row">
+              {locais.map((d) => (
+                <button key={d.id} type="button" className="pill" onClick={() => irSub(d.id)}>
+                  {[d.cliente, d.projeto].filter(Boolean).join(' · ') || 'Orçamento sem nome'} · {new Date(d.ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                </button>
+              ))}
+            </div>
+          </section>
+        );
+      })()}
 
       <div className="epi-kpis orc-kpis">
         <div className="epi-kpi"><span className="l">Em aberto</span><b>{emAberto.length}</b><span className="h">{brl(emAberto.reduce((s, o) => s + valor(o), 0))}</span></div>

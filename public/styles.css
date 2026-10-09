@@ -1514,3 +1514,6 @@ body.com-faixa .overlay, body.com-faixa .campo-folha, body.com-faixa .cam, body.
 .rfi-campos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .rfi-campos .largo { grid-column: span 2; }
 @media (max-width: 560px) { .rfi-campos .largo { grid-column: 1 / -1; } }
+.orc-locais { display: flex; flex-direction: column; gap: 8px; background: var(--yellow-soft); border: 1px solid var(--yellow-line); }
+.orc-salvo:disabled { opacity: 1; background: var(--lime-soft); color: var(--lime-ink); cursor: default; }
+.orc-salvo.off { background: var(--yellow-soft); color: var(--yellow-ink); }

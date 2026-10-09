@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { hoje } from '../lib.js';
-import { useBloqueioSaida } from '../rota.js';
 import { ClienteCampo, listaClientes } from '../ClienteCampo.jsx';
 import {
   ESCOPOS, NOME, PARAMETROS_INICIAIS, STATUS, brl, calcular, entradaInicial, fmtM, fmtN, pct, resumo, statusNome,
@@ -33,7 +32,8 @@ export function OrcamentoMuros({ dados, eu, orcamento, novoId: idDado, parametro
   const [status, setStatus] = useState(orcamento?.status || 'rascunho');
   const [revisao, setRevisao] = useState(orcamento?.revisao ?? 0);
   const [emitida, setEmitida] = useState(orcamento?.revisao_emitida ?? null);
-  const [sujo, setSujo] = useState(!orcamento);
+  const [sujo, setSujo] = useState(false); // tem alteração ainda não gravada no sistema
+  const [semRede, setSemRede] = useState(false); // última tentativa automática falhou (fica guardado neste aparelho)
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
   const [verGestao, setVerGestao] = useState(true);
@@ -54,6 +54,30 @@ export function OrcamentoMuros({ dados, eu, orcamento, novoId: idDado, parametro
   const pc = useMemo(() => propostaComercial(r, entrada, params, { numero: numeroOrc(row || orcamento), revisao, responsavel: respNome }), [r, entrada, params, row, orcamento, revisao, respNome]);
 
   const mudar = (fn) => { if (travado) return; setEntrada((e) => { const x = clone(e); fn(x); return x; }); setSujo(true); };
+
+  // ---------- salvamento automático ----------
+  // 1) cada mudança vai na hora para este aparelho (se o computador travar, nada se perde)
+  // 2) 3 s depois da última mudança, grava no sistema; o endereço passa a ser o do orçamento (ORC-AAAA-NNNN)
+  const chaveLocal = `eql-orc-rascunho:${id}`;
+  const recuperado = useRef(false);
+  useEffect(() => {
+    if (recuperado.current) return;
+    recuperado.current = true;
+    try {
+      const d = JSON.parse(localStorage.getItem(chaveLocal) || 'null');
+      const doSistema = orcamento?.atualizado_em ? Date.parse(orcamento.atualizado_em) : 0;
+      if (d && d.ts > doSistema && !(orcamento && orcamento.revisao_emitida === orcamento.revisao)) {
+        setEntrada(completar(d.entrada, padrao)); if (d.params) setParams(d.params);
+        if (d.paramsVersao !== undefined) setParamsVersao(d.paramsVersao); if (d.status) setStatus(d.status);
+        setSujo(true);
+        avisar('Recuperei o que você estava preenchendo neste aparelho.');
+      } else if (d) localStorage.removeItem(chaveLocal);
+    } catch { /* ignora */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!sujo || travado) return;
+    try { localStorage.setItem(chaveLocal, JSON.stringify({ ts: Date.now(), entrada, params, paramsVersao, status, cliente: entrada.cliente, projeto: entrada.projeto })); } catch { /* sem espaço: segue só com o sistema */ }
+  }, [entrada, params, paramsVersao, status, sujo, travado]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (caminho, v) => mudar((x) => { const ks = caminho.split('.'); let o = x; ks.slice(0, -1).forEach((k) => { o = o[k] ||= {}; }); o[ks.at(-1)] = v; });
 
   const linha = (extra = {}) => ({
@@ -61,17 +85,40 @@ export function OrcamentoMuros({ dados, eu, orcamento, novoId: idDado, parametro
     responsavel_id: entrada.responsavel_id || null, data: entrada.data || hoje(), validade: entrada.validade || null,
     entrada, parametros: params, parametros_versao: paramsVersao, resumo: resumo(r), revisao, ...extra,
   });
-  const salvar = async (extra) => {
-    setSalvando(true); setErro('');
-    const res = await salvarOrcamento(linha(extra), existe);
+  const versaoRef = useRef(0); // muda a cada edição: só limpa o "sujo" se nada mudou durante a gravação
+  useEffect(() => { versaoRef.current += 1; }, [entrada, params, paramsVersao, status]);
+  const salvar = async (extra, { auto = false } = {}) => {
+    const versao = versaoRef.current;
+    setSalvando(true); if (!auto) setErro('');
+    const res = await salvarOrcamento(linha(extra), existeRef.current);
     setSalvando(false);
-    if (!res.ok) { setErro(res.erro); return false; }
-    const primeira = !existe;
-    setExiste(true); setSujo(false);
+    if (!res.ok) {
+      if (auto) setSemRede(true); else setErro(res.erro);
+      return false;
+    }
+    setSemRede(false); setErro('');
+    const primeira = !existeRef.current;
+    existeRef.current = true; setExiste(true);
+    if (versaoRef.current === versao) { setSujo(false); try { localStorage.removeItem(chaveLocal); } catch { /* ignora */ } }
     dados.recarregarTabela?.('orcamentos');
     if (primeira) onSalvo?.(id);
     return true;
   };
+  const existeRef = useRef(!!orcamento);
+  useEffect(() => {
+    if (!sujo || travado || salvando) return undefined;
+    const t = setTimeout(() => salvar(undefined, { auto: true }), semRede ? 15000 : 3000);
+    return () => clearTimeout(t);
+  }, [entrada, params, paramsVersao, status, sujo, travado, salvando, semRede]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { // internet voltou: grava na hora
+    const f = () => sujo && !travado && salvar(undefined, { auto: true });
+    window.addEventListener('online', f);
+    return () => window.removeEventListener('online', f);
+  }); // eslint-disable-line react-hooks/exhaustive-deps
+  // saindo da tela com algo pendente: grava antes (e o rascunho do aparelho garante se não der)
+  const salvarRef = useRef(salvar); salvarRef.current = salvar;
+  const pendenteRef = useRef(false); pendenteRef.current = sujo && !travado;
+  useEffect(() => () => { if (pendenteRef.current) salvarRef.current(undefined, { auto: true }); }, []);
   const mudarStatus = async (s) => {
     setStatus(s);
     if (existe) {
@@ -126,10 +173,7 @@ export function OrcamentoMuros({ dados, eu, orcamento, novoId: idDado, parametro
   });
   const desfazerResolucao = (pid) => mudar((x) => { delete x.comercial.resolvidas[pid]; });
 
-  // avisa antes de sair com alterações não salvas
-  // e também no botão voltar do celular/navegador e nos itens do menu
-  const perguntarSaida = useCallback(() => window.confirm('Sair sem salvar as alterações?'), []);
-  useBloqueioSaida(sujo, perguntarSaida);
+  // fechar a aba com algo ainda não gravado no sistema: o navegador pergunta (o rascunho do aparelho fica guardado de qualquer jeito)
   useEffect(() => {
     if (!sujo) return undefined;
     const f = (ev) => { ev.preventDefault(); ev.returnValue = ''; };
@@ -157,7 +201,12 @@ export function OrcamentoMuros({ dados, eu, orcamento, novoId: idDado, parametro
           {travado ? `Rev. ${revisao} emitida` : r.final ? 'Pronta para emitir' : 'Prévia'}
         </span>
         <div className="orc-acoes">
-          {!travado && <button type="button" className={'pill' + (sujo ? ' lime' : '')} onClick={() => salvar()} disabled={salvando}>{salvando ? 'Salvando…' : sujo ? 'Salvar rascunho' : 'Salvo ✓'}</button>}
+          {!travado && (
+            <button type="button" className={'pill orc-salvo' + (semRede ? ' off' : '')} onClick={() => salvar()} disabled={salvando || (!sujo && existe)}
+              title="Salva sozinho a cada alteração">
+              {salvando ? 'Salvando…' : semRede ? 'Sem conexão · guardado neste aparelho' : sujo ? 'Salvar agora' : existe ? 'Salvo automaticamente ✓' : 'Salva sozinho ao preencher'}
+            </button>
+          )}
           {travado && <button type="button" className="pill lime" onClick={revisar}>Revisar</button>}
           {existe && <button type="button" className="pill" onClick={duplicar}>Duplicar</button>}
           <button type="button" className="pill" onClick={() => setApresentar(true)} disabled={!r.ok}>Apresentar ao cliente</button>
