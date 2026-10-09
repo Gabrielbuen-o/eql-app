@@ -55,7 +55,7 @@ export function Configuracoes({ dados, eu, usuario, pode, salvarPrefs, avisar, v
         </section>
       </div>
 
-      {pode.verOperacao && !semPerfis && <Usuarios dados={dados} eu={eu} pode={pode} avisar={avisar} verAtividades={verAtividades} verComo={verComo} />}
+      {pode.admin && !semPerfis && <Usuarios dados={dados} eu={eu} pode={pode} avisar={avisar} verAtividades={verAtividades} verComo={verComo} />}
       {pode.admin && <Clientes dados={dados} avisar={avisar} verComo={verComo} />}
       {pode.admin && <Frases dados={dados} />}
       {pode.admin && !semPerfis && <Atividades dados={dados} filtroUsuario={filtroLog} setFiltroUsuario={setFiltroLog} />}
@@ -86,7 +86,7 @@ function MinhaConta({ eu, dados }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
           <span style={{ fontWeight: 800, fontSize: 18 }}>{eu.nome}</span>
           <span className="note">{eu.email}</span>
-          <span className="badge blue">{papelNome[eu.papel]}</span>
+          {eu.papel === 'admin' && <span className="badge blue">{papelNome[eu.papel]}</span>}
         </div>
       </div>
       <form className="add-form" onSubmit={(e) => { e.preventDefault(); if (mudou) dados.atualizarPerfil(eu.id, { nome: nome.trim() }); }}>

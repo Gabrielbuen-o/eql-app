@@ -186,7 +186,8 @@ export async function reduzirImagem(arquivo, max = 320) {
 // Relatório por etapas: cada etapa tem a quantidade RECOMENDADA de fotos.
 // Toda etapa precisa de pelo menos 1 foto para concluir; no máximo ETAPA_MAX por etapa.
 export const ETAPA_MAX = 10;
-// RFI: 26 etapas, 46 fotos recomendadas. Não mude os ids depois de usar (ficam gravados nas fotos).
+// RFI: 26 etapas, 46 fotos recomendadas — mesma ordem e quantidade das 46 fotos do modelo oficial (public/modelos/rfi.xlsx).
+// Não mude os ids depois de usar (ficam gravados nas fotos).
 export const ETAPAS_RFI = [
   { id: 'fachada', nome: 'Fachada', rec: 2 },
   { id: 'acesso_site', nome: 'Acesso ao site', rec: 2 },
@@ -200,16 +201,16 @@ export const ETAPAS_RFI = [
   { id: 'qde_disjuntores', nome: 'QDE disjuntores', rec: 1 },
   { id: 'qde_identificacao', nome: 'Identificação dos disjuntores na tampa acrílica (QDE)', rec: 1 },
   { id: 'qde_energizado', nome: 'QDE energizado', rec: 1 },
-  { id: 'caixa_passagem', nome: 'Caixa de passagem elétrica e fibra óptica', rec: 2 },
+  { id: 'caixa_passagem', nome: 'Caixas de passagem EL/FO (elétrica e fibra óptica)', rec: 2 },
   { id: 'encaminhamento', nome: 'Encaminhamento das tubulações', rec: 2 },
   { id: 'skid', nome: 'Skid', rec: 2 },
-  { id: 'skid_medidas', nome: 'Medidas do skid conforme o projeto', rec: 2 },
-  { id: 'detalhes_cabos', nome: 'Detalhes de tubulações, cabos, AC, metragem e tensão', rec: 2 },
-  { id: 'aterramento_horizontal', nome: 'Aterramento horizontal', rec: 1 },
-  { id: 'aterramento_vertical', nome: 'Aterramento vertical', rec: 1 },
-  { id: 'barras', nome: 'Barra FS, barra FCI e TGB', rec: 2 },
+  { id: 'skid_medidas', nome: 'Medidas do skid conforme projeto', rec: 2 },
+  { id: 'detalhes_cabos', nome: 'Detalhes de tubulações - cabos AC, metragem, tensão', rec: 2 },
+  { id: 'esteiramento_horizontal', nome: 'Esteiramento horizontal', rec: 1 },
+  { id: 'esteiramento_vertical', nome: 'Esteiramento vertical', rec: 1 },
+  { id: 'barras', nome: 'Barra FCI e TGB', rec: 2 },
   { id: 'suportes_ev', nome: 'Suportes na EV', rec: 2 },
-  { id: 'fixacao_suportes', nome: 'Fixação de suportes', rec: 2 },
+  { id: 'fixacao_suportes', nome: 'Fixação dos suportes', rec: 2 },
   { id: 'luminaria', nome: 'Luminária acesa', rec: 2 },
   { id: 'energia_provisoria', nome: 'Energia provisória', rec: 2 },
   { id: 'disjuntor_provisorio', nome: 'Disjuntor provisório', rec: 2 },

@@ -92,7 +92,7 @@ export function PortalCliente({ eu, usuario, grupoComo, onSairComo }) {
           )}
       </main>
 
-      {relAberto && <VerRelatorio r={relAberto} dados={d.dadosRel} onFechar={() => voltar('/inicio')} />}
+      {relAberto && <VerRelatorio r={relAberto} dados={d.dadosRel} onFechar={() => voltar('/inicio')} exportarRfi />}
     </div>
   );
 }

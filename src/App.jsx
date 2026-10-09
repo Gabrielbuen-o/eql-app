@@ -214,7 +214,8 @@ function Painel({ usuario }) {
               <Avatar perfil={eu} nome={usuario.email} online />
               <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <span className="me-nome">{eu?.nome || usuario.email}</span>
-                <span className="me-email">{papelNome[papel]}</span>
+                {/* nível de acesso só aparece para administrador */}
+                <span className="me-email">{pode.admin ? papelNome[papel] : eu?.email || usuario.email}</span>
               </div>
             </button>
           </nav>

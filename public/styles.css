@@ -1464,3 +1464,6 @@ button.epi-ficha-tag { cursor: pointer; }
 .rel-etapa h3 { font-size: 13px; font-weight: 800; color: var(--text-2); }
 .rel-etapa h3 small { color: var(--muted); font-weight: 600; margin-left: 6px; }
 .rel-etapa.vazia h3 small { color: var(--red-text); }
+.rfi-campos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.rfi-campos .largo { grid-column: span 2; }
+@media (max-width: 560px) { .rfi-campos .largo { grid-column: 1 / -1; } }

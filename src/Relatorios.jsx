@@ -212,7 +212,8 @@ export function Relatorios({ dados, pode, abertoId = null, irSub }) {
       )}
       {aberto && (
         <VerRelatorio r={aberto} dados={dados} onFechar={() => setAberto(null)}
-          onApagar={pode.gestao ? (r) => dados.apagarRelatorio(r) : null} />
+          onApagar={pode.gestao ? (r) => dados.apagarRelatorio(r) : null}
+          exportarRfi salvarCampos={pode.gestao ? dados.salvarCamposRelatorio : null} />
       )}
     </>
   );

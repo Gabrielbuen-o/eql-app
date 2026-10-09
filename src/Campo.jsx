@@ -13,6 +13,7 @@ import { montarZip } from './zip.js';
 import { VIDEO_MAX_SEG, carimbar, comprimirFoto, conferirVideo, coordTexto, lerExif, linkMapa, tamanho } from './midia.js';
 import { CameraContinua, GravadorVideo } from './Camera.jsx';
 import { useVoltarFecha } from './rota.js';
+import { CAMPOS_RFI, camposIniciais, gerarRfiXlsx } from './rfiExcel.js';
 
 // App do pessoal de campo: uma tela só — saudação, obra do dia e "Novo relatório".
 export function AppCampo({ dados, eu, avisar, previa = false }) {
@@ -683,7 +684,8 @@ async function entregar(arquivos, nomeZip) {
 }
 
 // Visualizador de um relatório (usado no campo e na visão dos administradores)
-export function VerRelatorio({ r, dados, onFechar, onApagar }) {
+export function VerRelatorio({ r, dados, onFechar, onApagar, exportarRfi = false, salvarCampos = null }) {
+  const [rfiAberto, setRfiAberto] = useState(false);
   const [foco, setFoco] = useState(null);
   const [confirmar, setConfirmar] = useState(false);
   const [baixando, setBaixando] = useState(null); // texto de progresso
@@ -753,6 +755,9 @@ export function VerRelatorio({ r, dados, onFechar, onApagar }) {
                 {baixando || `Baixar ${(r.arquivos || []).length > 1 ? `todas (${(r.arquivos || []).length})` : ''}`}
               </button>
             )}
+            {exportarRfi && r.tipo === 'rfi' && fotos.length > 0 && (
+              <button type="button" className="pill" onClick={() => setRfiAberto(true)}>RFI no modelo (Excel)</button>
+            )}
             <button type="button" className="pill ghost" onClick={onFechar}>Fechar</button>
           </div>
         </div>
@@ -801,6 +806,7 @@ export function VerRelatorio({ r, dados, onFechar, onApagar }) {
           </div>
         )}
       </div>
+      {rfiAberto && <ExportarRfi r={r} obra={obra} dados={dados} etapas={etapasTipo} salvarCampos={salvarCampos} onFechar={() => setRfiAberto(false)} />}
       {foco != null && fotos[foco] && (
         <div className="rel-luz" onClick={(e) => e.target === e.currentTarget && setFoco(null)}>
           <img src={dados.urlArquivo(fotos[foco].caminho)} alt={`Foto ${foco + 1} de ${fotos.length}`} />
@@ -816,5 +822,51 @@ export function VerRelatorio({ r, dados, onFechar, onApagar }) {
       )}
     </div>,
     document.body,
+  );
+}
+
+// RFI no modelo oficial: confere o cabeçalho e baixa a planilha com as fotos nos lugares
+function ExportarRfi({ r, obra, dados, etapas, salvarCampos, onFechar }) {
+  const [campos, setCampos] = useState(() => camposIniciais(r, obra));
+  const [status, setStatus] = useState('');
+  const [erro, setErro] = useState('');
+  const [fim, setFim] = useState(null);
+  const edita = !!salvarCampos;
+  const baixar = async () => {
+    setErro(''); setFim(null);
+    try {
+      if (edita && JSON.stringify(campos) !== JSON.stringify(r.campos || {})) await salvarCampos(r.id, campos);
+      const res = await gerarRfiXlsx({ r, obra, campos, etapas, urlArquivo: dados.urlArquivo, progresso: setStatus });
+      setStatus('');
+      await entregar([{ nome: res.nome, blob: res.blob }], res.nome);
+      setFim(res);
+    } catch (e) { setStatus(''); setErro(e.message || 'Não deu para gerar a planilha.'); }
+  };
+  const ocupado = !!status;
+  return (
+    <div className="overlay" style={{ zIndex: 80 }} onMouseDown={(e) => e.target === e.currentTarget && !ocupado && onFechar()}>
+      <div className="modal" role="dialog" aria-modal="true" aria-label="RFI no modelo oficial" style={{ maxWidth: 720 }}>
+        <div className="modal-head">
+          <div><span className="modal-kicker">RFI no modelo oficial</span><h2>{obra?.nome || 'Obra'}</h2>
+            <p className="note">As fotos entram nos lugares do modelo (FOTO 01 a 46), na ordem das etapas.{edita ? ' Confira o cabeçalho: fica salvo neste relatório.' : ''}</p></div>
+          <button type="button" className="icon-btn" aria-label="Fechar" onClick={onFechar} disabled={ocupado}>×</button>
+        </div>
+        <div className="rfi-campos">
+          {CAMPOS_RFI.map((f) => (
+            <label key={f.id} className={'field' + (f.largo ? ' largo' : '') + (f.curto ? ' curto' : '')}><span>{f.rotulo}</span>
+              {f.opcoes
+                ? <select value={campos[f.id] || ''} disabled={!edita || ocupado} onChange={(e) => setCampos({ ...campos, [f.id]: e.target.value })}>{f.opcoes.map((o) => <option key={o}>{o}</option>)}</select>
+                : <input value={campos[f.id] || ''} disabled={!edita || ocupado} onChange={(e) => setCampos({ ...campos, [f.id]: e.target.value })} />}
+            </label>
+          ))}
+        </div>
+        {erro && <div className="err" role="alert">{erro}</div>}
+        {fim && <p className="note">Pronto: {fim.colocadas} de {fim.espacos} fotos no modelo.{fim.sobraram ? ` ${fim.sobraram} foto(s) a mais que o modelo não comporta ficaram de fora (use “Baixar todas”).` : ''}</p>}
+        <div className="modal-foot">
+          <button type="button" className="pill ghost" onClick={onFechar} disabled={ocupado}>Fechar</button>
+          <button type="button" className="pill lime" onClick={baixar} disabled={ocupado}>{status || (edita ? 'Salvar e baixar planilha' : 'Baixar planilha')}</button>
+        </div>
+      </div>
+    </div>
   );
 }

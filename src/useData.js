@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './lib.js';
 
 // tabela -> [coluna de ordenação, ascendente, filtra por dia recente?]
@@ -20,7 +20,9 @@ const TABELAS = {
   orcamentos: ['criado_em', false, false],
   orcamento_parametros: ['versao', true, false],
   clientes: ['nome', true, false],
+  perfis_publicos: ['nome', true, false], // nome e foto dos colegas (quem não é administrador não lê o nível de acesso)
 };
+const SEM_TEMPO_REAL = ['perfis_publicos'];
 const NOMES = Object.keys(TABELAS);
 
 // Carrega as tabelas, escuta mudanças em tempo real e expõe as ações.
@@ -71,7 +73,7 @@ export function useData(avisar, userId) {
       if (!vivo) return;
       setCarregando(false);
       // Tempo real só nas tabelas que existem: uma tabela inexistente derruba a assinatura inteira
-      const existentes = NOMES.filter((_, i) => oks[i]);
+      const existentes = NOMES.filter((t, i) => oks[i] && !SEM_TEMPO_REAL.includes(t));
       canal = supabase.channel('eql-tempo-real');
       existentes.forEach((t) => canal.on('postgres_changes', { event: '*', schema: 'public', table: t }, () => recarregar(t)));
       canal.subscribe((status) => {
@@ -286,6 +288,8 @@ export function useData(avisar, userId) {
     return ok ? n : null;
   };
   const atualizarCliente = (id, campos) => atualizar('clientes', id, campos).then((ok) => { if (ok && campos.nome) { recarregar('demandas'); recarregar('perfis'); recarregar('orcamentos'); } return ok; });
+  // cabeçalho do relatório oficial (RFI): endereço, ID do site…
+  const salvarCamposRelatorio = (id, campos) => atualizar('relatorios', id, { campos });
   const salvarFrase = (texto) => inserir('frases', { texto, ativo: true }, false);
   const alternarFrase = (id, ativo) => atualizar('frases', id, { ativo });
   const apagarFrase = (id) => apagar('frases', id);
@@ -296,10 +300,16 @@ export function useData(avisar, userId) {
   };
   const apagarLancamento = (id) => apagar('custos_lancamentos', id);
 
+  // quem não é administrador só lê a própria conta; dos colegas vêm só nome e foto
+  const perfis = useMemo(() => {
+    const ids = new Set(db.perfis.map((p) => p.id));
+    return [...db.perfis, ...db.perfis_publicos.filter((p) => !ids.has(p.id))];
+  }, [db.perfis, db.perfis_publicos]);
+
   return {
-    ...db, carregando, online, faltando, recarregarTabela: recarregar,
+    ...db, perfis, carregando, online, faltando, recarregarTabela: recarregar,
     definirCusto, apagarCusto, salvarFinanceiro, lancarCusto, apagarLancamento,
-    enviarArquivo, urlArquivo, salvarRelatorio, apagarRelatorio, salvarFrase, alternarFrase, apagarFrase,
+    enviarArquivo, urlArquivo, salvarRelatorio, apagarRelatorio, salvarFrase, alternarFrase, apagarFrase, salvarCamposRelatorio,
     salvarItemEpi, movimentarEpi, atualizarMovimentoEpi, apagarMovimentoEpi,
     atualizarPerfil, enviarFoto,
     salvarDemanda, excluirDemanda, criarCliente, atualizarCliente,
@@ -317,7 +327,7 @@ function limiteDias() {
 }
 
 // recursos que dependem de arquivos SQL opcionais: não geram aviso ao carregar
-const OPCIONAIS = ['custos_funcionarios', 'financeiro_demandas', 'custos_lancamentos', 'relatorios', 'frases', 'epi_itens', 'epi_movimentos', 'orcamentos', 'orcamento_parametros', 'clientes'];
+const OPCIONAIS = ['custos_funcionarios', 'financeiro_demandas', 'custos_lancamentos', 'relatorios', 'frases', 'epi_itens', 'epi_movimentos', 'orcamentos', 'orcamento_parametros', 'clientes', 'perfis_publicos'];
 
 const CAMPOS_DEMANDA = ['empresa', 'grupo', 'nome', 'descricao', 'fase', 'percentual', 'inicio', 'entrega', 'pagamento',
   'qtd_total', 'qtd_produzida', 'unidade', 'arquivada', 'produto', 'especificacao'];
