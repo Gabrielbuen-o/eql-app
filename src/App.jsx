@@ -161,7 +161,7 @@ function Painel({ usuario }) {
   // celular: a aba atual aparece na barra de abas (que rola de lado)
   useEffect(() => {
     if (!window.matchMedia?.('(max-width: 899px)').matches) return;
-    const el = document.querySelector('.nav button.sub.on') || document.querySelector('.nav button.on, .nav button.parent');
+    const el = document.querySelector('.nav button.on, .nav button.parent');
     el?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
   }, [idTela]);
   // saiu da tela cheia (Esc) → sai do modo TV
@@ -216,6 +216,15 @@ function Painel({ usuario }) {
                 )),
               ])}
             </div>
+            {/* celular: as sub-abas (ex.: Obras / Fábrica) ganham uma linha própria embaixo das abas */}
+            {atual.sub && (
+              <div className="nav-sub" aria-label={`Seções de ${atual.nome}`}>
+                {atual.sub.filter((x) => x.mostrar(pode)).map((x) => (
+                  <button key={x.id} type="button" className={sub === x.id ? 'on' : ''} aria-current={sub === x.id ? 'page' : undefined}
+                    onClick={() => setAba(atual.id + '/' + x.id)}>{x.nome}</button>
+                ))}
+              </div>
+            )}
             <button type="button" className="me" style={{ border: 0, textAlign: 'left', width: '100%' }} onClick={() => setAba('config')}>
               <Avatar perfil={eu} nome={usuario.email} online />
               <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
