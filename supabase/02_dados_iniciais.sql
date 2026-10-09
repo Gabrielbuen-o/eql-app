@@ -22,10 +22,10 @@ insert into public.demandas (empresa, grupo, nome, descricao, fase, percentual, 
 ('engenharia', 'Help', 'SPO790', 'Telecom', 'execucao', 0, null, '2026-10-15'),
 ('engenharia', 'Help', 'MAU007', 'Telecom', 'execucao', 0, null, null),
 ('engenharia', 'Help', 'SPO230', 'Telecom', 'execucao', 0, null, null),
--- EQL Engenharia · Agplan (telecom)
-('engenharia', 'Agplan', 'IHS1', 'Telecom', 'execucao', 0, null, null),
-('engenharia', 'Agplan', 'IHS2', 'Telecom', 'execucao', 0, null, null),
-('engenharia', 'Agplan', 'PGR',  'Telecom', 'execucao', 0, null, null),
+-- EQL Engenharia · Ageplan (telecom)
+('engenharia', 'Ageplan', 'IHS1', 'Telecom', 'execucao', 0, null, null),
+('engenharia', 'Ageplan', 'IHS2', 'Telecom', 'execucao', 0, null, null),
+('engenharia', 'Ageplan', 'PGR',  'Telecom', 'execucao', 0, null, null),
 -- EQL Impermeabilização
 ('impermeabilizacao', 'Obras', 'Santa Maria', 'Impermeabilização da obra Santa Maria', 'aprovacao', 0, null, '2026-11-03'),
 ('impermeabilizacao', 'Obras', 'Juliano',     'Impermeabilização', 'execucao',   0, null, '2026-10-07'),

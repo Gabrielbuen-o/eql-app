@@ -226,7 +226,7 @@ function lerPrefs() {
 }
 
 // Frases do dia (aparecem para o campo e no Início): administradores cadastram
-// ---------- Clientes (Help, Agplan…) ----------
+// ---------- Clientes (Help, Ageplan…) ----------
 function Clientes({ dados, avisar, verComo }) {
   const [novo, setNovo] = useState('');
   const [editando, setEditando] = useState(null); // { id, nome }

@@ -2,7 +2,7 @@
 -- EQL Group — atualização 16: cadastro de clientes
 -- Pode rodar mais de uma vez sem problema.
 --
--- • Lista única de clientes (Help, Agplan, Zopone, Radial…) usada nas obras, na fábrica,
+-- • Lista única de clientes (Help, Ageplan, Zopone, Radial…) usada nas obras, na fábrica,
 --   nos orçamentos e no acesso dos clientes ao portal.
 -- • Nome digitado de outro jeito ("help", "HELP ") vira o nome oficial ("Help").
 -- • Nome novo usado em 2 obras/pedidos vira cliente sozinho.
@@ -109,7 +109,7 @@ create trigger registrar_atividade after insert or update or delete on public.cl
 for each row execute function public.registrar_atividade();
 
 -- ---------- Lista inicial ----------
-insert into public.clientes (nome) values ('Help'), ('Agplan'), ('Zopone'), ('Radial')
+insert into public.clientes (nome) values ('Help'), ('Ageplan'), ('Zopone'), ('Radial')
 on conflict do nothing;
 -- quem já aparece em 2 ou mais obras/pedidos também entra
 insert into public.clientes (nome, origem)

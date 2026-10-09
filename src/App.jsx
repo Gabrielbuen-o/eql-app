@@ -166,7 +166,7 @@ function Painel({ usuario }) {
     return () => document.removeEventListener('fullscreenchange', sair);
   }, []);
 
-  // cliente (Help, Agplan…): portal próprio, sem menu do sistema
+  // cliente (Help, Ageplan…): portal próprio, sem menu do sistema
   if (pode.soCliente) {
     return (
       <>

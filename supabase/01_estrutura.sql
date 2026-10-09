@@ -17,7 +17,7 @@ create table if not exists public.funcionarios (
 create table if not exists public.demandas (
   id             uuid primary key default gen_random_uuid(),
   empresa        text not null check (empresa in ('engenharia', 'impermeabilizacao', 'eko')),
-  grupo          text,                       -- cliente/parceiro: Obras civis, Help, Agplan, Produção…
+  grupo          text,                       -- cliente/parceiro: Obras civis, Help, Ageplan, Produção…
   nome           text not null,
   descricao      text,
   fase           text not null default 'orcamento'

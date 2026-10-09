@@ -44,7 +44,7 @@ export const PAGAMENTOS = [
 ];
 
 // Ordem dos grupos dentro de cada empresa
-const ORDEM_GRUPOS = ['Obras civis', 'Obras', 'Help', 'Agplan', 'Produção'];
+const ORDEM_GRUPOS = ['Obras civis', 'Obras', 'Help', 'Ageplan', 'Produção'];
 export function ordemGrupo(a, b) {
   const ia = ORDEM_GRUPOS.indexOf(a), ib = ORDEM_GRUPOS.indexOf(b);
   if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);

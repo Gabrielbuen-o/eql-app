@@ -1,5 +1,5 @@
 -- =====================================================================
--- EQL Group — atualização 15: portal do cliente (Help, Agplan…)
+-- EQL Group — atualização 15: portal do cliente (Help, Ageplan…)
 -- Pode rodar mais de uma vez sem problema.
 --
 -- O cliente vê SÓ:

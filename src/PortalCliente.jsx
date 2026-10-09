@@ -3,7 +3,7 @@ import { addDias, diaSemana, fmt, hoje, saudacao, supabase, tipoRelatorio } from
 import { VerRelatorio, contagem, hora } from './Campo.jsx';
 import { navegar, useCaminho } from './rota.js';
 
-// Portal do cliente (Help, Agplan…): só as obras do grupo dele, a equipe e os relatórios concluídos.
+// Portal do cliente (Help, Ageplan…): só as obras do grupo dele, a equipe e os relatórios concluídos.
 // Nenhum valor, custo, faturamento, frota ou dado de outro cliente — o banco já entrega só isso (portal_cliente).
 // Endereços: /inicio · /obras/<id> · /relatorios/<id>
 
@@ -81,7 +81,7 @@ export function PortalCliente({ eu, usuario, grupoComo, onSairComo }) {
           : !p.grupo ? (
             <section className="card pc-vazio">
               <h2>Seu acesso ainda não está ligado a uma empresa</h2>
-              <p className="note">Peça para a EQL vincular o seu usuário (Help, Agplan…). Assim que fizer, as suas obras aparecem aqui.</p>
+              <p className="note">Peça para a EQL vincular o seu usuário (Help, Ageplan…). Assim que fizer, as suas obras aparecem aqui.</p>
             </section>
           ) : partes[0] === 'obras' ? (
             d.porId[partes[1]]

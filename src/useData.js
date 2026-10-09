@@ -276,7 +276,7 @@ export function useData(avisar, userId) {
   };
   const atualizarMovimentoEpi = (id, campos) => atualizar('epi_movimentos', id, campos);
   const apagarMovimentoEpi = (id) => apagar('epi_movimentos', id);
-  // Clientes (Help, Agplan…): lista única usada nas obras, fábrica, orçamentos e portal
+  // Clientes (Help, Ageplan…): lista única usada nas obras, fábrica, orçamentos e portal
   const criarCliente = async (nome) => {
     const n = (nome || '').trim();
     if (!n) return null;
