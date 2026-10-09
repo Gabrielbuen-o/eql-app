@@ -120,11 +120,13 @@ async function prepararFoto(url) {
 }
 
 const EMU = 9525;
-function ancora({ col, colOff, row, rowOff, cx, cy, id, rid, nome }) {
-  return `<xdr:oneCellAnchor><xdr:from><xdr:col>${col}</xdr:col><xdr:colOff>${colOff}</xdr:colOff><xdr:row>${row}</xdr:row><xdr:rowOff>${rowOff}</xdr:rowOff></xdr:from>`
-    + `<xdr:ext cx="${cx}" cy="${cy}"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${id}" name="${esc(nome)}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>`
+// âncora de duas células (igual à dos logos do modelo): abre igual no Excel, no Google Planilhas e no LibreOffice
+function ancora({ de, ate, cx, cy, id, rid, nome }) {
+  const ponto = (tag, p) => `<xdr:${tag}><xdr:col>${p.col}</xdr:col><xdr:colOff>${p.colOff}</xdr:colOff><xdr:row>${p.row}</xdr:row><xdr:rowOff>${p.rowOff}</xdr:rowOff></xdr:${tag}>`;
+  return `<xdr:twoCellAnchor editAs="oneCell">${ponto('from', de)}${ponto('to', ate)}`
+    + `<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${id}" name="${esc(nome)}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>`
     + `<xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>`
-    + `<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>`;
+    + `<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:twoCellAnchor>`;
 }
 
 // gera a planilha preenchida. Retorna { blob, nome, colocadas, sobraram }
@@ -168,19 +170,16 @@ export async function gerarRfiXlsx({ r, obra, campos, etapas, urlArquivo, progre
     const margem = 6;
     const esc2 = Math.min((W - 2 * margem) / img.w, (H - 2 * margem) / img.h);
     const w = img.w * esc2, h = img.h * esc2;
-    // posição centralizada dentro da área
-    let x = (W - w) / 2, col = c0;
-    while (col < c1 && x >= colPx(col)) { x -= colPx(col); col++; }
-    let y = (H - h) / 2, row = r0;
-    while (row < r1 && y >= rowPx(row)) { y -= rowPx(row); row++; }
+    // posição centralizada dentro da área: canto de cima/esquerda e canto de baixo/direita em células + deslocamento
+    const pontoX = (px) => { let c = c0; while (c < c1 && px >= colPx(c)) { px -= colPx(c); c++; } return { col: c - 1, colOff: Math.round(Math.min(px, colPx(c)) * EMU) }; };
+    const pontoY = (px) => { let r = r0; while (r < r1 && px >= rowPx(r)) { px -= rowPx(r); r++; } return { row: r - 1, rowOff: Math.round(Math.min(px, rowPx(r)) * EMU) }; };
+    const x0 = (W - w) / 2, y0 = (H - h) / 2;
+    const de = { ...pontoX(x0), ...pontoY(y0) }, ate = { ...pontoX(x0 + w), ...pontoY(y0 + h) };
     const nomeMidia = `rfi-foto-${String(i + 1).padStart(2, '0')}.jpeg`;
     poe(`xl/media/${nomeMidia}`, img.bytes);
     const rid = `rIdFoto${i + 1}`;
     novasRels.push(`<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${nomeMidia}"/>`);
-    novas.push(ancora({
-      col: col - 1, colOff: Math.round(x * EMU), row: row - 1, rowOff: Math.round(y * EMU),
-      cx: Math.round(w * EMU), cy: Math.round(h * EMU), id: 1000 + i, rid, nome: `Foto ${i + 1} - ${p.etapa.nome}`,
-    }));
+    novas.push(ancora({ de, ate, cx: Math.round(w * EMU), cy: Math.round(h * EMU), id: 1000 + i, rid, nome: `Foto ${i + 1} - ${p.etapa.nome}` }));
   }
   drawing = drawing.replace('</xdr:wsDr>', novas.join('') + '</xdr:wsDr>');
   rels = rels.replace('</Relationships>', novasRels.join('') + '</Relationships>');
