@@ -379,7 +379,7 @@ table.cal { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 .user-row .times { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
 .user-row select, .user-row .input { min-height: 38px; }
 .photo-btn { position: relative; border: 0; padding: 0; background: none; border-radius: 50%; }
-.photo-btn .cam {
+.photo-btn .foto-tag {
   position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%); font-size: 10px; font-weight: 700;
   background: var(--ink); color: var(--on-ink); padding: 1px 6px; border-radius: 999px; white-space: nowrap;
 }

@@ -112,7 +112,7 @@ function BotaoFoto({ perfil, dados, grande, online, podeTrocar = true }) {
     <>
       <button type="button" className="photo-btn" aria-label={`Trocar foto de ${perfil.nome || perfil.email}`} onClick={() => input.current?.click()} disabled={enviando}>
         <Avatar perfil={perfil} online={online} grande={grande} />
-        <span className="cam">{enviando ? '…' : 'Foto'}</span>
+        <span className="foto-tag">{enviando ? '…' : 'Foto'}</span>
       </button>
       <input ref={input} type="file" accept="image/*" hidden onChange={escolher} />
     </>
