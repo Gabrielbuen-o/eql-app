@@ -17,6 +17,8 @@ const TABELAS = {
   frases: ['criado_em', true, false],
   epi_itens: ['nome', true, false],
   epi_movimentos: ['criado_em', true, false],
+  orcamentos: ['criado_em', false, false],
+  orcamento_parametros: ['versao', true, false],
 };
 const NOMES = Object.keys(TABELAS);
 
@@ -303,7 +305,7 @@ function limiteDias() {
 }
 
 // recursos que dependem de arquivos SQL opcionais: não geram aviso ao carregar
-const OPCIONAIS = ['custos_funcionarios', 'financeiro_demandas', 'custos_lancamentos', 'relatorios', 'frases', 'epi_itens', 'epi_movimentos'];
+const OPCIONAIS = ['custos_funcionarios', 'financeiro_demandas', 'custos_lancamentos', 'relatorios', 'frases', 'epi_itens', 'epi_movimentos', 'orcamentos', 'orcamento_parametros'];
 
 const CAMPOS_DEMANDA = ['empresa', 'grupo', 'nome', 'descricao', 'fase', 'percentual', 'inicio', 'entrega', 'pagamento',
   'qtd_total', 'qtd_produzida', 'unidade', 'arquivada', 'produto', 'especificacao'];
@@ -319,6 +321,7 @@ function explicarErro(error) {
   if (/demandas_fase_check/.test(msg)) return 'a fase "Estoque" ainda não está liberada no banco (rode o arquivo 08_eko_e_custos_juntos.sql no Supabase).';
   if (/bucket not found|relatorios.*(does not exist|schema cache)|(does not exist|schema cache).*relatorios/i.test(msg)) return 'os relatórios ainda não estão liberados no banco (rode o arquivo 09_relatorios_de_obra.sql no Supabase).';
   if (/epi_.*(does not exist|schema cache)|(does not exist|schema cache).*epi_/i.test(msg)) return 'o estoque de EPI ainda não está liberado no banco (rode o arquivo 13_estoque_epi.sql no Supabase).';
+  if (/orcament.*(does not exist|schema cache)|(does not exist|schema cache).*orcament/i.test(msg)) return 'os orçamentos ainda não estão liberados no banco (rode o arquivo 14_orcamentos.sql no Supabase).';
   if (/payload too large|exceeded the maximum allowed size|too large/i.test(msg)) return 'arquivo grande demais (máximo 50 MB).';
   if (/failed to fetch|network|load failed/i.test(msg)) return 'sem internet no momento. Tente de novo quando o sinal voltar.';
   if (/row-level security|permission denied/i.test(msg)) return 'seu tipo de acesso não permite essa alteração.';
