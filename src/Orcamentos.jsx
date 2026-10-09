@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { fmt, hoje } from './lib.js';
 import { OrcamentoMuros, numeroOrc } from './orcamentos/OrcamentoMuros.jsx';
@@ -14,8 +14,8 @@ const CATEGORIAS = [
 ];
 const nomeCat = Object.fromEntries(CATEGORIAS.map((c) => [c.id, c.nome]));
 
-export function Orcamentos({ dados, eu, pode, avisar }) {
-  const [aberto, setAberto] = useState(null); // id do orçamento | 'novo:muros'
+// Endereços: /orcamentos · /orcamentos/novo/muros · /orcamentos/ORC-2026-0012 (ou o id, antes de ganhar número)
+export function Orcamentos({ dados, eu, pode, avisar, resto = [], irSub = () => {} }) {
   const [escolher, setEscolher] = useState(false);
   const [parametros, setParametros] = useState(false);
   const [status, setStatus] = useState('abertos');
@@ -25,12 +25,34 @@ export function Orcamentos({ dados, eu, pode, avisar }) {
   const versoesMuros = (dados.orcamento_parametros || []).filter((v) => v.categoria === 'muros').sort((a, b) => b.versao - a.versao);
   const vigente = versoesMuros[0] || null;
   const falta = dados.faltando.has('orcamentos') || dados.faltando.has('orcamento_parametros');
+  const token = (o) => (o.numero ? numeroOrc(o) : o.id);
+  const setAberto = (id, opc) => { const o = lista.find((x) => x.id === id); irSub(o ? token(o) : id, opc); };
 
-  if (aberto) {
-    const orc = aberto.startsWith('novo:') ? null : lista.find((o) => o.id === aberto);
+  // orçamento novo: o id nasce aqui para a tela não recarregar quando o endereço passa a ter o número
+  const ehNovo = resto[0] === 'novo';
+  const [idNovo, setIdNovo] = useState(null);
+  useEffect(() => { if (ehNovo) setIdNovo(crypto.randomUUID?.() || String(Date.now()) + Math.random().toString(16).slice(2)); }, [ehNovo]);
+  const chave = resto[0] && !ehNovo ? decodeURIComponent(resto[0]) : null;
+  const orc = chave ? lista.find((o) => o.id === chave || (o.numero && numeroOrc(o).toUpperCase() === chave.toUpperCase())) || lista.find((o) => o.id === idNovo && chave === o.id) : null;
+
+  // depois de salvar, o endereço troca para o número do orçamento (ORC-2026-0012), sem criar "voltar"
+  useEffect(() => { if (orc && chave !== token(orc)) irSub(token(orc), { replace: true }); }, [orc?.id, orc?.numero, chave]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (ehNovo || chave) {
+    if (chave && !orc && chave !== idNovo) {
+      return (
+        <section className="card placeholder">
+          <h2 style={{ fontSize: 20, fontWeight: 800 }}>Orçamento não encontrado</h2>
+          <p>{chave} não existe ou foi apagado.</p>
+          <button type="button" className="pill" onClick={() => irSub(null)}>Ver todos os orçamentos</button>
+        </section>
+      );
+    }
+    if (ehNovo && !idNovo) return null;
+    const id = orc ? orc.id : idNovo; // recém-salvo e ainda chegando do banco: continua na mesma tela
     return (
-      <OrcamentoMuros key={aberto} dados={dados} eu={eu} orcamento={orc} parametrosVigentes={vigente || { versao: null, parametros: PARAMETROS_INICIAIS }}
-        onVoltar={() => setAberto(null)} onAbrir={(id) => setAberto(id)} avisar={avisar} />
+      <OrcamentoMuros key={id} novoId={id} dados={dados} eu={eu} orcamento={orc} parametrosVigentes={vigente || { versao: null, parametros: PARAMETROS_INICIAIS }}
+        onVoltar={() => irSub(null)} onAbrir={(nid) => setAberto(nid, { forcar: true })} onSalvo={(sid) => irSub(sid, { replace: true, forcar: true })} avisar={avisar} />
     );
   }
 
@@ -118,7 +140,7 @@ export function Orcamentos({ dados, eu, pode, avisar }) {
             <div className="orc-cats">
               {CATEGORIAS.map((c) => (
                 <button key={c.id} type="button" className={'campo-tipo' + (c.ativo ? '' : ' breve')} disabled={!c.ativo}
-                  onClick={() => { setEscolher(false); setAberto('novo:' + c.id); }}>
+                  onClick={() => { setEscolher(false); irSub('novo/' + c.id); }}>
                   <span className="campo-tipo-nome">{c.nome}</span><span className="campo-tipo-desc">{c.desc}</span>
                 </button>
               ))}

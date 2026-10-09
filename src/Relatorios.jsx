@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { EMPRESAS, TIPOS_RELATORIO, addDias, diaSemana, empresaPorId, fmt, hoje, inicioSemana, iso, parse, tipoRelatorio } from './lib.js';
 import { NovoRelatorio, VerRelatorio, contagem, hora } from './Campo.jsx';
+import { useVoltarFecha } from './rota.js';
 
 const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 
@@ -10,14 +11,17 @@ const DIARIOS = TIPOS_RELATORIO.filter((t) => t.ativo); // esperados todo dia em
 const MODOS = [{ id: 'dia', nome: 'Dia' }, { id: 'semana', nome: 'Semana' }, { id: 'mes', nome: 'Mês' }];
 const OBRAS = EMPRESAS.filter((e) => e.id !== 'eko');
 
-export function Relatorios({ dados, pode }) {
+export function Relatorios({ dados, pode, abertoId = null, irSub }) {
   const dia0 = hoje();
   const [modo, setModoState] = useState(() => { try { return localStorage.getItem('eql-rel-modo') || 'semana'; } catch { return 'semana'; } });
   const setModo = (m) => { setModoState(m); try { localStorage.setItem('eql-rel-modo', m); } catch { /* ignora */ } };
   const [ref, setRef] = useState(dia0);
   const [filtro, setFiltro] = useState('todas');
-  const [aberto, setAberto] = useState(null);
+  // o relatório aberto fica no endereço: /calendario/relatorios/<id> (dá para mandar o link)
+  const aberto = abertoId ? (dados.relatorios || []).find((r) => r.id === abertoId) || null : null;
+  const setAberto = (r) => irSub?.(r ? r.id : null);
   const [novo, setNovo] = useState(null); // { dia, obra }
+  useVoltarFecha(!!novo, () => setNovo(null));
   const [soRel, setSoRelState] = useState(() => { try { return localStorage.getItem('eql-rel-so') === '1'; } catch { return false; } });
   const setSoRel = (v) => { setSoRelState(v); try { localStorage.setItem('eql-rel-so', v ? '1' : '0'); } catch { /* ignora */ } };
   const [status, setStatus] = useState('todos'); // todos | andamento | entregues

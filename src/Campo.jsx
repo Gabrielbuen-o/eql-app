@@ -11,6 +11,7 @@ import {
 import { montarZip } from './zip.js';
 import { VIDEO_MAX_SEG, carimbar, comprimirFoto, conferirVideo, coordTexto, lerExif, linkMapa, tamanho } from './midia.js';
 import { CameraContinua, GravadorVideo } from './Camera.jsx';
+import { useVoltarFecha } from './rota.js';
 
 // App do pessoal de campo: uma tela só — saudação, obra do dia e "Novo relatório".
 export function AppCampo({ dados, eu, avisar }) {
@@ -26,6 +27,10 @@ export function AppCampo({ dados, eu, avisar }) {
   const [novo, setNovo] = useState(false);
   const [continuar, setContinuar] = useState(null); // id do relatório em andamento aberto
   const [aberto, setAberto] = useState(null); // relatório de hoje aberto para ver
+  // botão voltar do celular fecha a janela aberta (o relatório fica salvo), não o app
+  useVoltarFecha(novo, () => setNovo(false));
+  useVoltarFecha(!!continuar, () => setContinuar(null));
+  useVoltarFecha(!!aberto, () => setAberto(null));
   const envio = useEnvio();
 
   // fila de envio: liga ao abrir o app e atualiza a lista quando algo sobe
@@ -250,6 +255,8 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
   const camRef = useRef(null), galRef = useRef(null), vidRef = useRef(null);
   const [camAberta, setCamAberta] = useState(false);
   const [gravando, setGravando] = useState(false);
+  useVoltarFecha(camAberta, () => setCamAberta(false));
+  useVoltarFecha(gravando, () => setGravando(false));
   const envio = useEnvio();
   const [pendentesFim, setPendentesFim] = useState(null); // na tela final: quantas faltam subir
 

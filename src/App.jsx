@@ -17,6 +17,7 @@ import { CalendarioObras } from './CalendarioObras.jsx';
 import { EstoqueEPI } from './EstoqueEPI.jsx';
 import { Orcamentos } from './Orcamentos.jsx';
 import { tipoRelatorio } from './lib.js';
+import { TITULOS, caminhoDaAba, lerCaminho, navegar, useCaminho } from './rota.js';
 
 // mostrar: quem vê a aba (a partir das permissões)
 const ABAS = [
@@ -55,8 +56,12 @@ export function App() {
 }
 
 function Painel({ usuario }) {
-  const [aba, setAba] = useState('inicio'); // o app sempre abre no Início
-  const [tv, setTv] = useState(false);
+  // a tela vem do endereço (app.eqlgroup.com.br/orcamentos, /calendario/relatorios, /tv/calendario…)
+  const caminho = useCaminho();
+  const rota = lerCaminho(caminho);
+  const aba = rota.aba || 'inicio';
+  const tv = rota.tv;
+  const setAba = (id) => navegar(caminhoDaAba(id));
   const [toast, setToast] = useState(null);
   const avisar = useCallback((msg) => {
     setToast(msg);
@@ -71,9 +76,25 @@ function Painel({ usuario }) {
   const custos = useCustos(dados, pode.admin && !dados.carregando);
   const abas = ABAS.filter((a) => a.mostrar(pode));
   const [abaPrincipal, subAba] = aba.split('/');
-  const atual = abas.find((a) => a.id === abaPrincipal) || abas.find((a) => a.id === 'demandas'); // cliente não tem Início: cai em Demandas
+  const atual = abas.find((a) => a.id === abaPrincipal) || abas.find((a) => a.id === 'inicio') || abas.find((a) => a.id === 'demandas'); // sem permissão: Início (cliente não tem Início: cai em Demandas)
   // aba com sub-abas abre direto na primeira (Demandas → Obras)
   const sub = atual.sub ? (atual.sub.find((x) => x.id === subAba && x.mostrar(pode)) || atual.sub[0]).id : null;
+  const idTela = atual.id + (sub ? '/' + sub : '');
+  const base = caminhoDaAba(idTela);
+  const resto = rota.aba === idTela || rota.aba === atual.id ? rota.resto : [];
+  const setTv = (v) => navegar((v ? '/tv' : '') + base + (resto.length ? '/' + resto.join('/') : ''), { replace: true, forcar: true });
+  const irSub = (partes, opc) => navegar(base + (partes ? '/' + partes : ''), opc);
+
+  // endereço vazio, desconhecido ou sem permissão → corrige para a tela certa (sem criar "voltar")
+  const certo = (tv ? '/tv' : '') + base + (resto.length ? '/' + resto.join('/') : '');
+  useEffect(() => {
+    if (dados.carregando) return;
+    if (pode.soCampo) { if (caminho !== '/') navegar('/', { replace: true, forcar: true }); return; }
+    if (caminho !== certo) navegar(certo, { replace: true, forcar: true });
+  }, [caminho, certo, dados.carregando, pode.soCampo]);
+  useEffect(() => {
+    document.title = pode.soCampo ? 'EQL Group' : `${TITULOS[idTela] || atual.nome} · EQL Group`;
+  }, [idTela, pode.soCampo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // preferências salvas no perfil valem em qualquer aparelho
   const prefsPerfil = JSON.stringify(eu?.preferencias || {});
@@ -117,10 +138,14 @@ function Painel({ usuario }) {
 
   useEffect(() => {
     document.body.classList.toggle('tv', tv);
-    const sair = () => !document.fullscreenElement && setTv(false);
+  }, [tv]);
+  // saiu da tela cheia (Esc) → sai do modo TV
+  const setTvRef = useRef(setTv); setTvRef.current = setTv;
+  useEffect(() => {
+    const sair = () => !document.fullscreenElement && document.body.classList.contains('tv') && setTvRef.current(false);
     document.addEventListener('fullscreenchange', sair);
     return () => document.removeEventListener('fullscreenchange', sair);
-  }, [tv]);
+  }, []);
 
   // pessoal de campo: uma tela só (obra do dia + novo relatório)
   if (pode.soCampo) {
@@ -164,7 +189,7 @@ function Painel({ usuario }) {
           </nav>
         )}
         <main className="main">
-          <ProtecaoErro chave={aba}>
+          <ProtecaoErro chave={idTela}>
           {dados.carregando ? (
             <p className="empty">Carregando dados…</p>
           ) : atual.id === 'demandas' && sub === 'fabrica' ? (
@@ -172,13 +197,13 @@ function Painel({ usuario }) {
           ) : atual.id === 'demandas' ? (
             <Demandas key="obras" modo="obras" dados={dados} tv={tv} setTv={setTv} avisar={avisar} pode={pode} custos={custos.porDemanda} />
           ) : atual.id === 'calendario' && sub === 'relatorios' ? (
-            <Relatorios dados={dados} pode={pode} />
+            <Relatorios dados={dados} pode={pode} abertoId={resto[0] || null} irSub={irSub} />
           ) : atual.id === 'calendario' ? (
             <CalendarioObras dados={dados} tv={tv} setTv={setTv} avisar={avisar} pode={pode} />
           ) : atual.id === 'equipes' ? (
             <Equipe dados={dados} pode={pode} />
           ) : atual.id === 'orcamentos' ? (
-            <Orcamentos dados={dados} eu={eu} pode={pode} avisar={avisar} />
+            <Orcamentos dados={dados} eu={eu} pode={pode} avisar={avisar} resto={resto} irSub={irSub} />
           ) : atual.id === 'epi' ? (
             <EstoqueEPI dados={dados} pode={pode} avisar={avisar} />
           ) : atual.id === 'frotas' ? (

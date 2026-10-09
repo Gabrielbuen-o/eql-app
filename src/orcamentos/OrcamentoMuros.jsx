@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { hoje } from '../lib.js';
+import { useBloqueioSaida } from '../rota.js';
 import {
   ESCOPOS, NOME, PARAMETROS_INICIAIS, STATUS, brl, calcular, entradaInicial, fmtM, fmtN, pct, resumo, statusNome,
 } from './muros.js';
@@ -21,9 +22,9 @@ const completar = (e, padrao) => {
   return out;
 };
 
-export function OrcamentoMuros({ dados, eu, orcamento, parametrosVigentes, onVoltar, onAbrir, avisar }) {
+export function OrcamentoMuros({ dados, eu, orcamento, novoId: idDado, parametrosVigentes, onVoltar, onAbrir, onSalvo, avisar }) {
   const padrao = useMemo(() => entradaInicial({ responsavel_id: eu?.id || null, hojeIso: hoje() }), [eu?.id]);
-  const [id] = useState(() => orcamento?.id || novoId());
+  const [id] = useState(() => orcamento?.id || idDado || novoId());
   const [existe, setExiste] = useState(!!orcamento);
   const [entrada, setEntrada] = useState(() => completar(orcamento?.entrada, padrao));
   const [params, setParams] = useState(() => orcamento?.parametros && Object.keys(orcamento.parametros).length ? orcamento.parametros : (parametrosVigentes?.parametros || PARAMETROS_INICIAIS));
@@ -64,8 +65,10 @@ export function OrcamentoMuros({ dados, eu, orcamento, parametrosVigentes, onVol
     const res = await salvarOrcamento(linha(extra), existe);
     setSalvando(false);
     if (!res.ok) { setErro(res.erro); return false; }
+    const primeira = !existe;
     setExiste(true); setSujo(false);
     dados.recarregarTabela?.('orcamentos');
+    if (primeira) onSalvo?.(id);
     return true;
   };
   const mudarStatus = async (s) => {
@@ -123,13 +126,16 @@ export function OrcamentoMuros({ dados, eu, orcamento, parametrosVigentes, onVol
   const desfazerResolucao = (pid) => mudar((x) => { delete x.comercial.resolvidas[pid]; });
 
   // avisa antes de sair com alterações não salvas
+  // e também no botão voltar do celular/navegador e nos itens do menu
+  const perguntarSaida = useCallback(() => window.confirm('Sair sem salvar as alterações?'), []);
+  useBloqueioSaida(sujo, perguntarSaida);
   useEffect(() => {
     if (!sujo) return undefined;
     const f = (ev) => { ev.preventDefault(); ev.returnValue = ''; };
     window.addEventListener('beforeunload', f);
     return () => window.removeEventListener('beforeunload', f);
   }, [sujo]);
-  const voltar = () => { if (!sujo || window.confirm('Sair sem salvar as alterações?')) onVoltar(); };
+  const voltar = () => onVoltar();
 
   const g = entrada.geometria, pr = entrada.prazo, cd = entrada.condicoes, cm = entrada.comercial;
   const clientes = useMemo(() => [...new Set([...(dados.orcamentos || []).map((o) => o.cliente), ...dados.demandas.map((d) => d.grupo)].filter(Boolean))].sort(), [dados.orcamentos, dados.demandas]);
