@@ -114,7 +114,7 @@ async function subir(caminho, blob, contentType) {
 }
 const metaPublica = (a) => a.remoto || {
   id: a.id, ordem: a.ordem, tipo: a.tipo, caminho: a.caminho, miniatura: a.mini, bytes: a.bytes, origem: a.origem,
-  quando: a.quando || null, duracao: a.duracao,
+  quando: a.quando || null, duracao: a.duracao, ...(a.etapa ? { etapa: a.etapa } : {}),
   ...(a.lat != null ? { lat: a.lat, lon: a.lon, precisao: a.precisao } : {}),
 };
 

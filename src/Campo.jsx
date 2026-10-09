@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   EMPRESAS, FOTOS_MAX, TIPOS_RELATORIO, dataLonga, empresaPorId, hoje, mensagemDoDia,
   saudacao, supabase, tipoRelatorio,
+  ETAPA_MAX, recomendadas,
 } from './lib.js';
 import {
   concluirRascunho, configurarEnvio, descartarRascunho, guardarArquivo, importarDoBanco, lerArquivos, lerRascunho,
@@ -252,6 +253,9 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
   const [processando, setProcessando] = useState(0);
   const [erro, setErro] = useState('');
   const [confirmarApagar, setConfirmarApagar] = useState(false);
+  const [etapaFoto, setEtapaFotoState] = useState(null); // relatório por etapas: etapa que está recebendo fotos agora
+  const etapaRef = useRef(null); // o seletor da galeria abre na hora do toque (iPhone exige), então guarda a etapa aqui também
+  const setEtapaFoto = (eid) => { etapaRef.current = eid; setEtapaFotoState(eid); };
   const criadoRef = useRef(!!rascunhoId);
   const camRef = useRef(null), galRef = useRef(null), vidRef = useRef(null);
   const [camAberta, setCamAberta] = useState(false);
@@ -272,7 +276,7 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
         setTipo(r.tipo); setDemandaId(r.demanda_id); setDia(r.dia); setFuncId(r.funcionario_id || ''); setObs(r.observacao || '');
         const lista = await lerArquivos(rascunhoId);
         setItens(lista.map((a) => ({
-          id: a.id, tipo: a.tipo, enviado: !!a.enviado, quando: a.quando || a.remoto?.quando, duracao: a.duracao || a.remoto?.duracao,
+          id: a.id, tipo: a.tipo, enviado: !!a.enviado, quando: a.quando || a.remoto?.quando, duracao: a.duracao || a.remoto?.duracao, etapa: a.etapa || a.remoto?.etapa || null,
           preview: a.tipo === 'video'
             ? (a.blob ? URL.createObjectURL(a.blob) : dados.urlArquivo(a.caminho || a.remoto?.caminho))
             : (a.miniatura ? URL.createObjectURL(a.miniatura) : dados.urlArquivo(a.mini || a.remoto?.miniatura || a.remoto?.caminho)),
@@ -317,6 +321,8 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
   const obra = dados.demandas.find((d) => d.id === demandaId);
   const quem = dados.funcionarios.find((f) => f.id === funcId)?.nome;
   const travado = itens.length > 0; // depois da primeira foto, obra e dia não mudam (já estão carimbados)
+  const etapas = tipoRelatorio[tipo]?.etapas || null; // RFI e outros relatórios por etapas
+  const etapaInfo = (eid) => { const i = (etapas || []).findIndex((e) => e.id === eid); return i < 0 ? null : { ...etapas[i], n: i + 1 }; };
 
   const linhasCarimbo = (meta) => {
     const q = meta.quando ? new Date(meta.quando) : null;
@@ -326,6 +332,7 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
     return [
       quandoTxt,
       [obra?.nome, quem || (escritorio ? 'lançado pelo escritório' : null), tipoRelatorio[tipo]?.nome].filter(Boolean).join(' · '),
+      meta.etapa && etapaInfo(meta.etapa) ? `Etapa ${etapaInfo(meta.etapa).n}/${etapas.length}: ${etapaInfo(meta.etapa).nome}` : null,
       meta.lat != null ? `Local: ${coordTexto(meta.lat, meta.lon, meta.prec)}` : null,
     ].filter(Boolean);
   };
@@ -345,26 +352,30 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
     const st = await carimbar(c.base, linhasCarimbo(meta));
     const arq = {
       id: novoId(), relatorioId: id, ordem: Date.now() + Math.random(), tipo: 'foto', foto: st.foto, miniatura: st.miniatura,
-      origem: meta.origem, quando: meta.quando ? new Date(meta.quando).toISOString() : null,
+      origem: meta.origem, quando: meta.quando ? new Date(meta.quando).toISOString() : null, ...(meta.etapa ? { etapa: meta.etapa } : {}),
       ...(meta.lat != null ? { lat: meta.lat, lon: meta.lon, precisao: meta.prec ? Math.round(meta.prec) : null } : {}),
       enviado: false,
     };
     await garantirRascunho();
     await guardarArquivo(arq);
-    setItens((xs) => [...xs, { id: arq.id, tipo: 'foto', preview: URL.createObjectURL(st.miniatura), quando: arq.quando, enviado: false }]);
+    setItens((xs) => [...xs, { id: arq.id, tipo: 'foto', preview: URL.createObjectURL(st.miniatura), quando: arq.quando, enviado: false, etapa: meta.etapa || null }]);
   };
-  const vagas = () => FOTOS_MAX - itens.filter((i) => i.tipo !== 'video').length - processando;
+  // por etapas: até ETAPA_MAX fotos em cada etapa; normal: até FOTOS_MAX no relatório
+  const vagas = (eid = etapaFoto) => (etapas
+    ? ETAPA_MAX - itens.filter((i) => i.tipo !== 'video' && i.etapa === eid).length - processando
+    : FOTOS_MAX - itens.filter((i) => i.tipo !== 'video').length - processando);
 
-  const adicionarFotos = async (lista, origem = 'galeria') => {
+  const adicionarFotos = async (lista, origem = 'galeria', eid = etapaRef.current) => {
     const arquivos = [...lista].filter((f) => f.type.startsWith('image/') || /\.(jpe?g|png|heic|heif|webp)$/i.test(f.name || ''));
-    const cabem = Math.max(0, vagas());
-    setErro(arquivos.length > cabem ? `O máximo é ${FOTOS_MAX} fotos. ${arquivos.length - cabem} ficaram de fora.` : '');
+    const cabem = Math.max(0, vagas(eid));
+    const limite = etapas ? `${ETAPA_MAX} fotos por etapa` : `${FOTOS_MAX} fotos`;
+    setErro(arquivos.length > cabem ? `O máximo é ${limite}. ${arquivos.length - cabem} ficaram de fora.` : '');
     for (const arq of arquivos.slice(0, cabem)) {
       setProcessando((n) => n + 1);
       try {
         let meta;
-        if (origem === 'camera') { const p = posAgora(); meta = { origem, quando: new Date(), lat: p?.lat, lon: p?.lon, prec: p?.prec }; }
-        else { const ex = await lerExif(arq); meta = { origem, quando: ex.quando || null, lat: ex.lat, lon: ex.lon }; }
+        if (origem === 'camera') { const p = posAgora(); meta = { origem, quando: new Date(), lat: p?.lat, lon: p?.lon, prec: p?.prec, etapa: eid }; }
+        else { const ex = await lerExif(arq); meta = { origem, quando: ex.quando || null, lat: ex.lat, lon: ex.lon, etapa: eid }; }
         await guardarFoto(arq, meta); // uma por vez: não pesa a memória do celular
       } catch (e) { setErro(e.message || 'Não deu para guardar a foto.'); }
       setProcessando((n) => n - 1);
@@ -374,7 +385,7 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
     if (vagas() <= 0) return;
     const p = posAgora();
     setProcessando((n) => n + 1);
-    try { await guardarFoto(blob, { origem: 'camera', quando, lat: p?.lat, lon: p?.lon, prec: p?.prec }); }
+    try { await guardarFoto(blob, { origem: 'camera', quando, lat: p?.lat, lon: p?.lon, prec: p?.prec, etapa: etapaFoto }); }
     catch (e) { setErro(e.message || 'Não deu para guardar a foto.'); }
     setProcessando((n) => n - 1);
   };
@@ -417,8 +428,11 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
     return () => clearTimeout(t);
   }, [obs, funcId, id]);
 
+  const fotosDaEtapa = (eid) => itens.filter((i) => i.tipo !== 'video' && i.etapa === eid);
+  const etapasSemFoto = etapas ? etapas.filter((e) => !fotosDaEtapa(e.id).length) : [];
+  const podeConcluir = itens.length > 0 && !etapasSemFoto.length;
   const concluir = async () => {
-    if (!itens.length || processando) return;
+    if (!podeConcluir || processando) return;
     await concluirRascunho(id, { observacao: obs, funcionario_id: funcId || null });
     setPendentesFim(itens.filter((i) => !i.enviado).length);
     setEtapa('ok');
@@ -488,18 +502,28 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
             </div>
           )}
 
-          <div className="campo-fotos-head">
-            <strong>Fotos</strong>
-            <span className="okk">{fotos.length} de {FOTOS_MAX}</span>
-          </div>
-          <div className="campo-botoes">
-            <button type="button" className="campo-add" onClick={() => setCamAberta(true)} disabled={!demandaId || vagas() <= 0}>
-              <b>Tirar fotos</b><span>{demandaId ? 'várias seguidas' : 'escolha a obra antes'}</span>
-            </button>
-            <button type="button" className="campo-add" onClick={() => galRef.current?.click()} disabled={!demandaId || vagas() <= 0}>
-              <b>Galeria</b><span>escolher várias</span>
-            </button>
-          </div>
+          {etapas ? (
+            <div className="rfi-resumo">
+              <div><b>{etapas.length - etapasSemFoto.length} de {etapas.length} etapas com foto</b>
+                <span>{fotos.length} {fotos.length === 1 ? 'foto' : 'fotos'} · recomendado {recomendadas(etapas)} · até {ETAPA_MAX} por etapa</span></div>
+              <div className="pc-barra"><i style={{ width: `${Math.round(((etapas.length - etapasSemFoto.length) / etapas.length) * 100)}%` }} /></div>
+            </div>
+          ) : (
+            <>
+            <div className="campo-fotos-head">
+              <strong>Fotos</strong>
+              <span className="okk">{fotos.length} de {FOTOS_MAX}</span>
+            </div>
+            <div className="campo-botoes">
+              <button type="button" className="campo-add" onClick={() => setCamAberta(true)} disabled={!demandaId || vagas() <= 0}>
+                <b>Tirar fotos</b><span>{demandaId ? 'várias seguidas' : 'escolha a obra antes'}</span>
+              </button>
+              <button type="button" className="campo-add" onClick={() => galRef.current?.click()} disabled={!demandaId || vagas() <= 0}>
+                <b>Galeria</b><span>escolher várias</span>
+              </button>
+            </div>
+            </>
+          )}
           <input ref={camRef} type="file" accept="image/*" capture="environment" hidden
             onChange={(e) => { adicionarFotos(e.target.files, 'camera'); e.target.value = ''; }} />
           <input ref={galRef} type="file" accept="image/*" multiple hidden
@@ -513,7 +537,43 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
             </div>
           )}
 
-          {(fotos.length > 0 || processando > 0) && (
+          {etapas && (
+            <div className="rfi-etapas">
+              {etapas.map((e, n) => {
+                const fs = fotosDaEtapa(e.id);
+                const completa = fs.length >= e.rec;
+                return (
+                  <section key={e.id} className={'rfi-etapa' + (fs.length ? (completa ? ' ok' : ' parcial') : '')} aria-label={`Etapa ${n + 1}: ${e.nome}`}>
+                    <div className="rfi-cab">
+                      <span className="rfi-n" aria-hidden="true">{completa ? '✓' : n + 1}</span>
+                      <div className="rfi-tit"><b>{e.nome}</b>
+                        <small>Recomendado: {e.rec} {e.rec === 1 ? 'foto' : 'fotos'} · {fs.length} {fs.length === 1 ? 'tirada' : 'tiradas'}{fs.length >= ETAPA_MAX ? ' · máximo' : ''}</small></div>
+                    </div>
+                    {(fs.length > 0 || (processando > 0 && etapaFoto === e.id)) && (
+                      <div className="campo-grade rfi-grade">
+                        {fs.map((it, i) => (
+                <div key={it.id} className="campo-mini">
+                  <img src={it.preview} alt={`Foto ${i + 1}`} />
+                  {it.quando && <span className="campo-mini-hora">{hora(it.quando)}</span>}
+                  <span className={'campo-mini-nuvem' + (it.enviado ? ' ok' : '')} title={it.enviado ? 'Salva no sistema' : 'Salva no celular, subindo…'}>{it.enviado ? '✓' : '↑'}</span>
+                  <button type="button" aria-label={`Tirar foto ${i + 1}`} onClick={() => tirar(it)}>×</button>
+                </div>
+              ))}
+                        {etapaFoto === e.id && Array.from({ length: processando }, (_, i) => <div key={'p' + i} className="campo-mini carregando" aria-label="preparando foto" />)}
+                      </div>
+                    )}
+                    <div className="rfi-botoes">
+                      <button type="button" className="campo-add fino" disabled={!demandaId || vagas(e.id) <= 0} onClick={() => { setEtapaFoto(e.id); setCamAberta(true); }}>
+                        <b>Tirar foto</b><span>{demandaId ? (vagas(e.id) <= 0 ? 'máximo atingido' : 'câmera do app') : 'escolha a obra'}</span></button>
+                      <button type="button" className="campo-add fino" disabled={!demandaId || vagas(e.id) <= 0} onClick={() => { setEtapaFoto(e.id); galRef.current?.click(); }}>
+                        <b>Galeria</b><span>escolher</span></button>
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          )}
+          {!etapas && (fotos.length > 0 || processando > 0) && (
             <div className="campo-grade">
               {fotos.map((it, i) => (
                 <div key={it.id} className="campo-mini">
@@ -558,8 +618,9 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
             {itens.length > 0 && (
               <span className="note">{naoSubiram ? `${itens.length - naoSubiram} de ${itens.length} já no sistema · ${envio.online ? 'subindo o resto…' : 'sem sinal: sobe quando voltar'}` : 'Tudo salvo no sistema ✓'}</span>
             )}
-            <button type="button" className="campo-novo" disabled={!itens.length || !!processando} onClick={concluir}>
-              {processando ? 'Preparando foto…' : !demandaId ? 'Escolha a obra' : !itens.length ? 'Tire pelo menos 1 foto' : 'Concluir relatório'}
+            <button type="button" className="campo-novo" disabled={!podeConcluir || !!processando} onClick={concluir}>
+              {processando ? 'Preparando foto…' : !demandaId ? 'Escolha a obra' : !itens.length ? 'Tire pelo menos 1 foto'
+                : etapasSemFoto.length ? `Falta foto em ${etapasSemFoto.length} ${etapasSemFoto.length === 1 ? 'etapa' : 'etapas'}` : 'Concluir relatório'}
             </button>
             {travado && (confirmarApagar ? (
               <span className="campo-apagar">Apagar este relatório e as fotos?
@@ -575,7 +636,9 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
           onUsarNativa={() => { setGravando(false); vidRef.current?.click(); }} />
       )}
       {camAberta && (
-        <CameraContinua previas={fotos.map((f) => ({ key: f.id, preview: f.preview }))} max={FOTOS_MAX} onFoto={fotoDaCamera} onFechar={() => setCamAberta(false)}
+        <CameraContinua previas={(etapas ? fotosDaEtapa(etapaFoto) : fotos).map((f) => ({ key: f.id, preview: f.preview }))} max={etapas ? ETAPA_MAX : FOTOS_MAX}
+          titulo={etapas && etapaInfo(etapaFoto) ? `${etapaInfo(etapaFoto).n}/${etapas.length} · ${etapaInfo(etapaFoto).nome}` : null}
+          recomendado={etapas && etapaInfo(etapaFoto) ? etapaInfo(etapaFoto).rec : null} onFoto={fotoDaCamera} onFechar={() => setCamAberta(false)}
           onUsarNativa={() => { setCamAberta(false); camRef.current?.click(); }} />
       )}
 
@@ -626,12 +689,28 @@ export function VerRelatorio({ r, dados, onFechar, onApagar }) {
   const [baixando, setBaixando] = useState(null); // texto de progresso
   const obra = dados.demandas.find((d) => d.id === r.demanda_id);
   const quem = dados.funcionarios.find((f) => f.id === r.funcionario_id)?.nome || dados.perfis.find((p) => p.id === r.autor_id)?.nome;
-  const fotos = (r.arquivos || []).filter((a) => a.tipo !== 'video');
+  // relatório por etapas (RFI): fotos na ordem das etapas
+  const etapasTipo = tipoRelatorio[r.tipo]?.etapas || null;
+  const posEtapa = (eid) => { const i = (etapasTipo || []).findIndex((e) => e.id === eid); return i < 0 ? 999 : i; };
+  const brutas = (r.arquivos || []).filter((a) => a.tipo !== 'video');
+  const fotos = etapasTipo ? [...brutas].sort((a, b) => posEtapa(a.etapa) - posEtapa(b.etapa) || (a.ordem || 0) - (b.ordem || 0)) : brutas;
   const videos = (r.arquivos || []).filter((a) => a.tipo === 'video');
+  const nomeEtapa = (eid) => etapasTipo?.find((e) => e.id === eid)?.nome || null;
   const base = [limpar(obra?.nome || 'obra'), r.dia, limpar(tipoRelatorio[r.tipo]?.nome || r.tipo)].join('_');
   const nomeDe = (a, i) => a.tipo === 'video'
     ? `${base}_video.${(a.caminho.split('.').pop() || 'mp4')}`
-    : `${base}_${String(i + 1).padStart(2, '0')}${a.quando ? '_' + new Date(a.quando).toTimeString().slice(0, 5).replace(':', 'h') : ''}.jpg`;
+    : etapasTipo
+      ? `${base}_${String(i + 1).padStart(2, '0')}_${limpar(nomeEtapa(a.etapa) || 'outras')}.jpg`
+      : `${base}_${String(i + 1).padStart(2, '0')}${a.quando ? '_' + new Date(a.quando).toTimeString().slice(0, 5).replace(':', 'h') : ''}.jpg`;
+  const miniFoto = (a) => {
+    const i = fotos.indexOf(a);
+    return (
+      <button key={a.caminho} type="button" className="rel-foto" onClick={() => setFoco(i)} aria-label={`Abrir foto ${i + 1}`}>
+        <img src={dados.urlArquivo(a.miniatura || a.caminho)} alt="" loading="lazy" />
+        {a.quando && <span className="rel-foto-hora">{hora(a.quando)}</span>}
+      </button>
+    );
+  };
 
   const baixar = async (lista) => {
     try {
@@ -678,14 +757,24 @@ export function VerRelatorio({ r, dados, onFechar, onApagar }) {
           </div>
         </div>
         {r.observacao && <p className="rel-obs">“{r.observacao}”</p>}
-        <div className="rel-grade">
-          {fotos.map((a, i) => (
-            <button key={a.caminho} type="button" className="rel-foto" onClick={() => setFoco(i)} aria-label={`Abrir foto ${i + 1}`}>
-              <img src={dados.urlArquivo(a.miniatura || a.caminho)} alt="" loading="lazy" />
-              {a.quando && <span className="rel-foto-hora">{hora(a.quando)}</span>}
-            </button>
-          ))}
-        </div>
+        {etapasTipo ? (
+          <>
+            {etapasTipo.map((e, n) => {
+              const fs = fotos.filter((a) => a.etapa === e.id);
+              return (
+                <div key={e.id} className={'rel-etapa' + (fs.length ? '' : ' vazia')}>
+                  <h3>{n + 1}. {e.nome}<small>{fs.length ? `${fs.length} de ${e.rec}` : 'sem foto'}</small></h3>
+                  {fs.length > 0 && <div className="rel-grade">{fs.map(miniFoto)}</div>}
+                </div>
+              );
+            })}
+            {fotos.some((a) => posEtapa(a.etapa) === 999) && (
+              <div className="rel-etapa"><h3>Outras fotos</h3><div className="rel-grade">{fotos.filter((a) => posEtapa(a.etapa) === 999).map(miniFoto)}</div></div>
+            )}
+          </>
+        ) : (
+          <div className="rel-grade">{fotos.map(miniFoto)}</div>
+        )}
         {videos.map((v) => (
           <div key={v.caminho} className="rel-video-box">
             <video className="rel-video" src={dados.urlArquivo(v.caminho)} controls playsInline preload="metadata" />
@@ -717,7 +806,7 @@ export function VerRelatorio({ r, dados, onFechar, onApagar }) {
           <img src={dados.urlArquivo(fotos[foco].caminho)} alt={`Foto ${foco + 1} de ${fotos.length}`} />
           <div className="rel-luz-barra">
             <button type="button" className="pill" disabled={foco === 0} onClick={() => setFoco(foco - 1)} aria-label="Anterior">‹</button>
-            <span>{foco + 1} / {fotos.length}{fotos[foco].quando ? ` · ${new Date(fotos[foco].quando).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}</span>
+            <span>{foco + 1} / {fotos.length}{nomeEtapa(fotos[foco].etapa) ? ` · ${nomeEtapa(fotos[foco].etapa)}` : ''}{fotos[foco].quando ? ` · ${new Date(fotos[foco].quando).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}</span>
             <button type="button" className="pill" disabled={foco === fotos.length - 1} onClick={() => setFoco(foco + 1)} aria-label="Próxima">›</button>
             {fotos[foco].lat != null && <a className="pill" href={linkMapa(fotos[foco].lat, fotos[foco].lon)} target="_blank" rel="noreferrer">Ver no mapa</a>}
             <button type="button" className="pill" disabled={!!baixando} onClick={() => baixar([fotos[foco]])}>{baixando || 'Baixar'}</button>

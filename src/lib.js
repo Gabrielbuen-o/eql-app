@@ -183,11 +183,45 @@ export async function reduzirImagem(arquivo, max = 320) {
 }
 
 // ---------- Relatórios de obra ----------
+// Relatório por etapas: cada etapa tem a quantidade RECOMENDADA de fotos.
+// Toda etapa precisa de pelo menos 1 foto para concluir; no máximo ETAPA_MAX por etapa.
+export const ETAPA_MAX = 10;
+// RFI: 26 etapas, 46 fotos recomendadas. Não mude os ids depois de usar (ficam gravados nas fotos).
+export const ETAPAS_RFI = [
+  { id: 'fachada', nome: 'Fachada', rec: 2 },
+  { id: 'acesso_site', nome: 'Acesso ao site', rec: 2 },
+  { id: 'qtm_fechado', nome: 'QTM fechado', rec: 1 },
+  { id: 'qtm_aberto', nome: 'QTM aberto', rec: 1 },
+  { id: 'qtm_disjuntores', nome: 'QTM disjuntores', rec: 1 },
+  { id: 'qtm_identificacao', nome: 'Identificação dos disjuntores na tampa acrílica (QTM)', rec: 1 },
+  { id: 'qtm_energizado', nome: 'QTM energizado', rec: 1 },
+  { id: 'qde_fechado', nome: 'QDE fechado', rec: 1 },
+  { id: 'qde_aberto', nome: 'QDE aberto', rec: 1 },
+  { id: 'qde_disjuntores', nome: 'QDE disjuntores', rec: 1 },
+  { id: 'qde_identificacao', nome: 'Identificação dos disjuntores na tampa acrílica (QDE)', rec: 1 },
+  { id: 'qde_energizado', nome: 'QDE energizado', rec: 1 },
+  { id: 'caixa_passagem', nome: 'Caixa de passagem elétrica e fibra óptica', rec: 2 },
+  { id: 'encaminhamento', nome: 'Encaminhamento das tubulações', rec: 2 },
+  { id: 'skid', nome: 'Skid', rec: 2 },
+  { id: 'skid_medidas', nome: 'Medidas do skid conforme o projeto', rec: 2 },
+  { id: 'detalhes_cabos', nome: 'Detalhes de tubulações, cabos, AC, metragem e tensão', rec: 2 },
+  { id: 'aterramento_horizontal', nome: 'Aterramento horizontal', rec: 1 },
+  { id: 'aterramento_vertical', nome: 'Aterramento vertical', rec: 1 },
+  { id: 'barras', nome: 'Barra FS, barra FCI e TGB', rec: 2 },
+  { id: 'suportes_ev', nome: 'Suportes na EV', rec: 2 },
+  { id: 'fixacao_suportes', nome: 'Fixação de suportes', rec: 2 },
+  { id: 'luminaria', nome: 'Luminária acesa', rec: 2 },
+  { id: 'energia_provisoria', nome: 'Energia provisória', rec: 2 },
+  { id: 'disjuntor_provisorio', nome: 'Disjuntor provisório', rec: 2 },
+  { id: 'gerais', nome: 'Gerais', rec: 8 },
+];
+export const recomendadas = (etapas) => etapas.reduce((s, e) => s + e.rec, 0);
+
 export const TIPOS_RELATORIO = [
   { id: 'inicio_dia', nome: 'Início do dia', curto: 'Início', desc: 'Como a obra está ao chegar', ativo: true },
   { id: 'fim_dia', nome: 'Final do dia', curto: 'Fim', desc: 'O que foi feito hoje', ativo: true },
   { id: 'limpeza', nome: 'Limpeza do dia', curto: 'Limpeza', desc: 'Local limpo e organizado', ativo: true },
-  { id: 'rfi', nome: 'RFI', curto: 'RFI', desc: 'Em breve', ativo: false },
+  { id: 'rfi', nome: 'RFI', curto: 'RFI', desc: '26 etapas · 46 fotos recomendadas', ativo: true, etapas: ETAPAS_RFI },
   { id: 'ancoragem', nome: 'Ancoragem', curto: 'Ancoragem', desc: 'Em breve', ativo: false },
   { id: 'entrega_obra', nome: 'Entrega de obra', curto: 'Entrega', desc: 'Em breve', ativo: false },
 ];

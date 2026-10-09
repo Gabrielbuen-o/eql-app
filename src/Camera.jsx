@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 
 // Câmera dentro do app: fica aberta, tira várias fotos seguidas e volta com todas.
 // onFoto(blob, quando) é chamado a cada clique; previas = miniaturas já tiradas (para mostrar embaixo).
-export function CameraContinua({ onFoto, onFechar, previas = [], max = 30, onUsarNativa }) {
+export function CameraContinua({ onFoto, onFechar, previas = [], max = 30, onUsarNativa, titulo, recomendado }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [estado, setEstado] = useState('abrindo'); // abrindo | pronta | erro
@@ -71,7 +71,10 @@ export function CameraContinua({ onFoto, onFechar, previas = [], max = 30, onUsa
     <div className="cam" role="dialog" aria-modal="true" aria-label="Câmera">
       <div className="cam-topo">
         <button type="button" className="cam-btn" onClick={onFechar}>Fechar</button>
-        <span className="cam-conta">{previas.length} {previas.length === 1 ? 'foto' : 'fotos'}{cheio ? ' · máximo' : ''}</span>
+        <span className="cam-conta">
+          {titulo && <small className="cam-titulo">{titulo}</small>}
+          {previas.length}{recomendado ? ` de ${recomendado}` : ''} {previas.length === 1 && !recomendado ? 'foto' : 'fotos'}{cheio ? ' · máximo' : ''}
+        </span>
         <button type="button" className="cam-btn" onClick={() => setFrente((f) => !f)} aria-label="Trocar câmera" disabled={estado !== 'pronta'}>↺</button>
       </div>
 

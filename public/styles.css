@@ -1438,3 +1438,29 @@ button.epi-ficha-tag { cursor: pointer; }
 .faixa-como .pill { flex: none; }
 .ver-como-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--soft); border-radius: var(--radius-m); padding: 10px 12px; font-size: 13px; font-weight: 600; }
 @media (max-width: 560px) { .faixa-como { left: 8px; right: 8px; bottom: 8px; flex-direction: column; align-items: stretch; } }
+
+/* ---------- Relatório por etapas (RFI) ---------- */
+.rfi-resumo { display: flex; flex-direction: column; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-l); padding: 12px 14px; position: sticky; top: 0; z-index: 3; }
+.rfi-resumo > div:first-child { display: flex; flex-direction: column; gap: 2px; }
+.rfi-resumo b { font-size: 15px; }
+.rfi-resumo span { font-size: 12px; color: var(--muted); font-weight: 600; }
+.rfi-etapas { display: flex; flex-direction: column; gap: 10px; }
+.rfi-etapa { display: flex; flex-direction: column; gap: 10px; background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--line-strong); border-radius: var(--radius-m); padding: 12px; }
+.rfi-etapa.parcial { border-left-color: var(--yellow); }
+.rfi-etapa.ok { border-left-color: var(--green-dot); }
+.rfi-cab { display: flex; gap: 10px; align-items: flex-start; }
+.rfi-n { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--chip); color: var(--text-2); font-weight: 800; font-size: 13px; display: grid; place-items: center; }
+.rfi-etapa.ok .rfi-n { background: var(--green-dot); color: #fff; }
+.rfi-etapa.parcial .rfi-n { background: var(--yellow-soft); color: var(--yellow-ink); }
+.rfi-tit { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rfi-tit b { font-size: 15px; line-height: 1.25; }
+.rfi-tit small { font-size: 12px; color: var(--muted); font-weight: 600; }
+.rfi-botoes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rfi-grade { margin: 0; }
+.cam-titulo { display: block; font-size: 12px; font-weight: 600; opacity: .85; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cam-conta { text-align: center; }
+/* visualizador: fotos separadas por etapa */
+.rel-etapa { display: flex; flex-direction: column; gap: 8px; }
+.rel-etapa h3 { font-size: 13px; font-weight: 800; color: var(--text-2); }
+.rel-etapa h3 small { color: var(--muted); font-weight: 600; margin-left: 6px; }
+.rel-etapa.vazia h3 small { color: var(--red-text); }
