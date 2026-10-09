@@ -17,7 +17,7 @@ import { CalendarioObras } from './CalendarioObras.jsx';
 import { EstoqueEPI } from './EstoqueEPI.jsx';
 import { Orcamentos } from './Orcamentos.jsx';
 import { PortalCliente } from './PortalCliente.jsx';
-import { AbasCelular, GavetaMenu, TopoCelular } from './MenuCelular.jsx';
+import { AbasCelular, GavetaMenu, Icone, TopoCelular } from './MenuCelular.jsx';
 import { tipoRelatorio } from './lib.js';
 import { TITULOS, caminhoDaAba, lerCaminho, navegar, useCaminho } from './rota.js';
 
@@ -211,20 +211,25 @@ function Painel({ usuario }) {
           <nav className="sidebar" aria-label="Menu principal">
             <Marca />
             <div className="nav">
-              {abas.map((a) => [
-                <button key={a.id} type="button" className={atual.id === a.id ? (sub ? 'parent' : 'on') : ''}
-                  aria-current={atual.id === a.id && !sub ? 'page' : undefined}
-                  onClick={() => setAba(a.id)}>
-                  <span>{a.nome}</span>
-                  {a.breve && <span className="soon">em breve</span>}
-                </button>,
-                atual.id === a.id && a.sub?.filter((x) => x.mostrar(pode)).map((x) => (
-                  <button key={a.id + '/' + x.id} type="button" className={'sub' + (sub === x.id ? ' on' : '')}
-                    aria-current={sub === x.id ? 'page' : undefined} onClick={() => setAba(a.id + '/' + x.id)}>
-                    <span>{x.nome}</span>
-                  </button>
-                )),
-              ])}
+              {abas.filter((a) => a.id !== 'config').map((a) => {
+                const ativa = atual.id === a.id;
+                const subs = a.sub?.filter((x) => x.mostrar(pode)) || [];
+                return [
+                  <button key={a.id} type="button" className={ativa ? (sub ? 'parent' : 'on') : ''}
+                    aria-current={ativa && !sub ? 'page' : undefined} onClick={() => setAba(a.id)}>
+                    <Icone nome={a.id} cheio={ativa} />
+                    <span>{a.nome}</span>
+                    {a.breve && <span className="soon">em breve</span>}
+                  </button>,
+                  // sub-abas sempre abertas (Demandas → Obras/Fábrica, Calendário → Agenda/Relatórios)
+                  subs.length > 1 && subs.map((x) => (
+                    <button key={a.id + '/' + x.id} type="button" className={'sub' + (ativa && sub === x.id ? ' on' : '')}
+                      aria-current={ativa && sub === x.id ? 'page' : undefined} onClick={() => setAba(a.id + '/' + x.id)}>
+                      <span>{x.nome}</span>
+                    </button>
+                  )),
+                ];
+              })}
             </div>
             {/* celular: as sub-abas (ex.: Obras / Fábrica) ganham uma linha própria embaixo das abas */}
             {atual.sub && (

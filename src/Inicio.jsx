@@ -4,10 +4,9 @@ import { empresaPorId, faseNome, hoje, ordemGrupo, rotuloPrazo, situacao } from 
 
 const PESO = { atrasada: 0, urgente: 1, semana: 2, ok: 3, sem: 4 };
 
-// Início: visão rápida da operação de hoje (pensada para o celular)
+// Início: o mesmo painel no computador e no celular (o layout se ajusta à largura)
 export function Inicio(props) {
-  const grande = useTelaGrande();
-  return grande ? <PainelDesktop {...props} /> : <InicioCelular {...props} />;
+  return <PainelDesktop {...props} />;
 }
 
 // computador / TV: painel completo; celular e tablet em pé: versão enxuta

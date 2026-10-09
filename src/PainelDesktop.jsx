@@ -355,7 +355,7 @@ function GraficoEntregas({ abertas, dia }) {
               {c.itens.length > 0 && (
                 <text x={x + w / 2} y={y(c.itens.length) - 6} textAnchor="middle" className={'val' + (c.id === 'atr' ? ' val-bad' : '')}>{c.itens.length}</text>
               )}
-              <text x={x + w / 2} y={H - 10} textAnchor="middle" className={'axis' + (c.id === 'atr' ? ' axis-bad' : '')}>{c.rotulo}</text>
+              <text x={x + w / 2} y={H - 10} textAnchor="middle" className={'axis' + (c.id === 'atr' ? ' axis-bad' : '')}>{bw < 46 ? ({ Atrasadas: 'Atras.', 'Esta sem.': 'Esta', Próxima: 'Próx.', Depois: 'Dep.' }[c.rotulo] || c.rotulo.slice(0, 5)) : c.rotulo}</text>
             </g>
           );
         })}
