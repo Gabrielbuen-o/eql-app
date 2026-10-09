@@ -18,7 +18,7 @@ const urlArquivo = (c) => (c ? supabase.storage.from('relatorios').getPublicUrl(
 const dataBonita = (d) => new Date(d + 'T12:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 const primeiro = (s) => (s || '').trim().split(/\s+/)[0];
 
-export function PortalCliente({ eu, usuario }) {
+export function PortalCliente({ eu, usuario, grupoComo, onSairComo }) {
   const [p, setP] = useState(null);
   const [erro, setErro] = useState('');
   const caminho = useCaminho();
@@ -26,10 +26,13 @@ export function PortalCliente({ eu, usuario }) {
   const dentro = useRef(false); // navegou dentro do portal (o "voltar" fica no app)
 
   const carregar = useCallback(async () => {
-    const { data, error } = await supabase.rpc('portal_cliente');
-    if (error) setErro(/portal_cliente|function/i.test(error.message) ? 'O portal ainda não foi liberado no banco (arquivo 15_portal_cliente.sql).' : error.message);
+    // administrador vendo como cliente usa a versão "como" (só administradores podem chamar)
+    const { data, error } = grupoComo !== undefined
+      ? await supabase.rpc('portal_cliente_como', { p_grupo: grupoComo })
+      : await supabase.rpc('portal_cliente');
+    if (error) setErro(/portal_cliente|function/i.test(error.message) ? `O portal ainda não foi liberado no banco (arquivo ${grupoComo !== undefined ? '17_ver_como.sql' : '15_portal_cliente.sql'}).` : error.message);
     else { setErro(''); setP(data); }
-  }, []);
+  }, [grupoComo]);
   useEffect(() => {
     carregar();
     const t = setInterval(carregar, 60000); // relatório novo aparece sozinho
@@ -68,7 +71,7 @@ export function PortalCliente({ eu, usuario }) {
         </button>
         <div className="pc-conta">
           <span className="pc-quem">{eu?.nome || usuario.email}</span>
-          <button type="button" className="pill ghost" onClick={() => window.confirm('Sair da sua conta?') && supabase.auth.signOut()}>Sair</button>
+          <button type="button" className="pill ghost" onClick={() => (onSairComo ? onSairComo() : window.confirm('Sair da sua conta?') && supabase.auth.signOut())}>Sair</button>
         </div>
       </header>
 

@@ -70,9 +70,21 @@ function Painel({ usuario }) {
     window.__eqlToast = setTimeout(() => setToast(null), 4500);
   }, []);
   const dados = useData(avisar, usuario.id);
-  const eu = dados.perfis.find((p) => p.id === usuario.id);
+  const euReal = dados.perfis.find((p) => p.id === usuario.id);
   // Antes de rodar o SQL de acessos (sem tabela de perfis), todos continuam com acesso total.
-  const papel = eu?.papel || (dados.faltando.has('perfis') ? 'admin' : 'campo');
+  const papelReal = euReal?.papel || (dados.faltando.has('perfis') ? 'admin' : 'campo');
+
+  // "Ver como" (só administradores): mostra o app como outra pessoa vê. Vale só nesta aba do navegador.
+  const [comoId, setComoId] = useState(() => { try { return sessionStorage.getItem('eql-ver-como') || null; } catch { return null; } });
+  const como = papelReal === 'admin' && comoId ? perfilComo(comoId, dados.perfis, euReal) : null;
+  const verComo = useCallback((id) => {
+    try { if (id) sessionStorage.setItem('eql-ver-como', id); else sessionStorage.removeItem('eql-ver-como'); } catch { /* ignora */ }
+    setComoId(id || null);
+    navegar(id ? '/' : '/configuracoes', { forcar: true });
+    window.scrollTo(0, 0);
+  }, []);
+  const eu = como || euReal;
+  const papel = como ? como.papel : papelReal;
   const pode = permissoes(papel);
   const custos = useCustos(dados, pode.admin && !dados.carregando);
   const abas = ABAS.filter((a) => a.mostrar(pode));
@@ -99,13 +111,18 @@ function Painel({ usuario }) {
   }, [idTela, pode.soCampo, pode.soCliente]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // preferências salvas no perfil valem em qualquer aparelho
-  const prefsPerfil = JSON.stringify(eu?.preferencias || {});
+  const prefsPerfil = JSON.stringify(euReal?.preferencias || {});
   useEffect(() => {
     const p = JSON.parse(prefsPerfil);
     // pessoal de campo: sempre o tema claro, em qualquer aparelho
-    if (eu?.papel === 'campo') { const claro = { ...(lerLocal('eql-prefs') || {}), ...p, tema: 'claro' }; aplicarPrefs(claro); gravarLocal('eql-prefs', claro); return; }
+    if (euReal?.papel === 'campo') { const claro = { ...(lerLocal('eql-prefs') || {}), ...p, tema: 'claro' }; aplicarPrefs(claro); gravarLocal('eql-prefs', claro); return; }
     if (Object.keys(p).length) { aplicarPrefs(p); gravarLocal('eql-prefs', p); }
-  }, [prefsPerfil, eu?.papel]);
+  }, [prefsPerfil, euReal?.papel]);
+  // vendo como campo/cliente: tema claro só na tela (as suas preferências não mudam); ao sair, volta o seu
+  useEffect(() => {
+    if (como && (como.papel === 'campo' || como.papel === 'cliente')) document.documentElement.dataset.tema = 'claro';
+    else aplicarPrefs(lerLocal('eql-prefs'));
+  }, [como?.id, como?.papel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // navega para uma aba (e, em Demandas, já com um filtro dos cartões)
   const irPara = (destino, filtro) => {
@@ -117,7 +134,7 @@ function Painel({ usuario }) {
   const salvarPrefs = async (p) => {
     aplicarPrefs(p);
     gravarLocal('eql-prefs', p);
-    if (eu) await dados.atualizarPerfil(eu.id, { preferencias: p });
+    if (euReal) await dados.atualizarPerfil(euReal.id, { preferencias: p });
   };
 
   // relatório novo chegando do campo: avisa quem está no escritório
@@ -151,15 +168,22 @@ function Painel({ usuario }) {
 
   // cliente (Help, Agplan…): portal próprio, sem menu do sistema
   if (pode.soCliente) {
-    return dados.carregando ? <div className="login"><p className="empty">Carregando…</p></div> : <PortalCliente eu={eu} usuario={usuario} />;
+    return (
+      <>
+        {dados.carregando ? <div className="login"><p className="empty">Carregando…</p></div>
+          : <PortalCliente eu={eu} usuario={usuario} grupoComo={como ? como.cliente_grupo || '' : undefined} onSairComo={como ? () => verComo(null) : undefined} />}
+        {como && <FaixaComo como={como} sair={() => verComo(null)} />}
+      </>
+    );
   }
 
   // pessoal de campo: uma tela só (obra do dia + novo relatório)
   if (pode.soCampo) {
     return (
       <>
-        {dados.carregando ? <div className="login"><p className="empty">Carregando…</p></div> : <AppCampo dados={dados} eu={eu} avisar={avisar} />}
+        {dados.carregando ? <div className="login"><p className="empty">Carregando…</p></div> : <AppCampo key={como?.id || 'eu'} dados={dados} eu={eu} avisar={avisar} previa={!!como} />}
         {toast && createPortal(<div className="toast" role="status">{toast}</div>, document.body)}
+        {como && <FaixaComo como={como} sair={() => verComo(null)} />}
       </>
     );
   }
@@ -220,7 +244,7 @@ function Painel({ usuario }) {
           ) : atual.id === 'financeiro' ? (
             <Resultados dados={dados} porDemanda={custos.porDemanda} />
           ) : atual.id === 'config' ? (
-            <Configuracoes dados={dados} eu={eu} usuario={usuario} pode={pode} salvarPrefs={salvarPrefs} avisar={avisar} />
+            <Configuracoes dados={dados} eu={eu} usuario={usuario} pode={pode} salvarPrefs={salvarPrefs} avisar={avisar} verComo={papelReal === 'admin' && !como ? verComo : null} />
           ) : (
             <>
               <header className="head"><h1>{atual.nome}</h1></header>
@@ -235,7 +259,32 @@ function Painel({ usuario }) {
         </main>
       </div>
       {toast && createPortal(<div className="toast" role="status">{toast}</div>, document.body)}
+      {como && <FaixaComo como={como} sair={() => verComo(null)} />}
     </div>
+  );
+}
+
+// "Ver como": um usuário (id) ou um cliente sem usuário ("cliente:Help")
+function perfilComo(id, perfis, euReal) {
+  if (id.startsWith('cliente:')) {
+    const g = id.slice(8);
+    return { id, nome: `Cliente ${g}`, email: '', papel: 'cliente', cliente_grupo: g, preferencias: {} };
+  }
+  if (id === 'campo:compartilhado') return { id, nome: 'Campo', email: '', papel: 'campo', funcionario_id: null, preferencias: {} };
+  const p = perfis.find((x) => x.id === id);
+  return p && p.id !== euReal?.id ? p : null;
+}
+
+function FaixaComo({ como, sair }) {
+  return createPortal(
+    <div className="faixa-como" role="status">
+      <span>
+        <b>Vendo como {como.nome || como.email} · {papelNome[como.papel]}{como.papel === 'cliente' && como.cliente_grupo ? ` (${como.cliente_grupo})` : ''}</b>
+        <small>O que você fizer aqui é real e fica no seu nome.</small>
+      </span>
+      <button type="button" className="pill lime" onClick={sair}>Voltar para a minha visão</button>
+    </div>,
+    document.body,
   );
 }
 

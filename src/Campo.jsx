@@ -14,11 +14,11 @@ import { CameraContinua, GravadorVideo } from './Camera.jsx';
 import { useVoltarFecha } from './rota.js';
 
 // App do pessoal de campo: uma tela só — saudação, obra do dia e "Novo relatório".
-export function AppCampo({ dados, eu, avisar }) {
+export function AppCampo({ dados, eu, avisar, previa = false }) {
   // campo é sempre no tema claro
   useEffect(() => { document.documentElement.dataset.tema = 'claro'; }, []);
   const dia = hoje();
-  const chaveLocal = 'eql-campo-funcionario';
+  const chaveLocal = previa ? 'eql-campo-funcionario-previa' : 'eql-campo-funcionario';
   const [escolhido, setEscolhido] = useState(() => { try { return localStorage.getItem(chaveLocal) || ''; } catch { return ''; } });
   const funcionarios = dados.funcionarios.filter((f) => f.ativo !== false);
   // login individual ligado a um funcionário (Configurações) ou login compartilhado: pergunta no celular
@@ -63,7 +63,7 @@ export function AppCampo({ dados, eu, avisar }) {
   const escolher = async (f) => {
     setConfirmar(null);
     guardarLocal(f.id);
-    if (eu && !eu.funcionario_id) {
+    if (eu && !eu.funcionario_id && !previa) { // vendo como: não liga o login de verdade
       const ok = await dados.atualizarPerfil(eu.id, { funcionario_id: f.id, nome: f.nome });
       if (ok) avisar(`Pronto, ${f.nome.split(' ')[0]}! Seu acesso já está ligado ao seu nome.`);
     }
@@ -88,7 +88,7 @@ export function AppCampo({ dados, eu, avisar }) {
   if (!func) {
     return (
       <div className="campo">
-        <TopoCampo />
+        <TopoCampo previa={previa} />
         <section className="campo-ola">
           <h1>{saudacao()}!</h1>
           <p>{confirmar ? 'Confirme que é você:' : 'Quem é você? Toque no seu nome.'}</p>
@@ -112,7 +112,7 @@ export function AppCampo({ dados, eu, avisar }) {
 
   return (
     <div className="campo">
-      <TopoCampo />
+      <TopoCampo previa={previa} />
       <section className="campo-ola">
         <p className="campo-data">{dataLonga().replace(/^./, (c) => c.toUpperCase())}</p>
         <h1>{saudacao()}, {func.nome.split(' ')[0]}!</h1>
@@ -206,9 +206,10 @@ export function AppCampo({ dados, eu, avisar }) {
 
 // Sem botão de sair (o pessoal de campo não saberia entrar de novo).
 // Saída escondida para o escritório: tocar 7 vezes seguidas no logo.
-function TopoCampo() {
+function TopoCampo({ previa }) {
   const toques = useRef([]);
   const tocar = () => {
+    if (previa) return;
     const agora = Date.now();
     toques.current = [...toques.current.filter((t) => agora - t < 3000), agora];
     if (toques.current.length >= 7) {

@@ -4,7 +4,7 @@ import { Atividades } from './Atividades.jsx';
 import { FRASES_PADRAO, PAPEIS, PREFS_PADRAO, hoje, mensagemDoDia, papelNome, reduzirImagem, supabase, tempoRelativo } from './lib.js';
 import { Avatar } from './Avatar.jsx';
 
-export function Configuracoes({ dados, eu, usuario, pode, salvarPrefs, avisar }) {
+export function Configuracoes({ dados, eu, usuario, pode, salvarPrefs, avisar, verComo = null }) {
   const prefs = { ...PREFS_PADRAO, ...lerPrefs(), ...(eu?.preferencias || {}) };
   const semPerfis = dados.faltando.has('perfis');
   const set = (k, v) => salvarPrefs({ ...prefs, [k]: v });
@@ -55,8 +55,8 @@ export function Configuracoes({ dados, eu, usuario, pode, salvarPrefs, avisar })
         </section>
       </div>
 
-      {pode.verOperacao && !semPerfis && <Usuarios dados={dados} eu={eu} pode={pode} avisar={avisar} verAtividades={verAtividades} />}
-      {pode.admin && <Clientes dados={dados} avisar={avisar} />}
+      {pode.verOperacao && !semPerfis && <Usuarios dados={dados} eu={eu} pode={pode} avisar={avisar} verAtividades={verAtividades} verComo={verComo} />}
+      {pode.admin && <Clientes dados={dados} avisar={avisar} verComo={verComo} />}
       {pode.admin && <Frases dados={dados} />}
       {pode.admin && !semPerfis && <Atividades dados={dados} filtroUsuario={filtroLog} setFiltroUsuario={setFiltroLog} />}
     </>
@@ -121,7 +121,7 @@ function BotaoFoto({ perfil, dados, grande, online, podeTrocar = true }) {
   );
 }
 
-function Usuarios({ dados, eu, pode, avisar, verAtividades }) {
+function Usuarios({ dados, eu, pode, avisar, verAtividades, verComo }) {
   const lista = [...dados.perfis].sort((a, b) =>
     (dados.online.has(b.id) - dados.online.has(a.id)) || (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
   const qtdOnline = lista.filter((p) => dados.online.has(p.id)).length;
@@ -131,9 +131,19 @@ function Usuarios({ dados, eu, pode, avisar, verAtividades }) {
         <h2 className="card-title">Usuários</h2>
         <span className="badge green">{qtdOnline} online agora</span>
       </div>
+      {verComo && (
+        <div className="ver-como-barra">
+          <span>Ver o app como:</span>
+          <button type="button" className="pill" onClick={() => verComo('campo:compartilhado')}>Campo (celular compartilhado)</button>
+          {(dados.clientes || []).filter((c) => c.ativo !== false).map((c) => (
+            <button key={c.id} type="button" className="pill" onClick={() => verComo('cliente:' + c.nome)}>Portal {c.nome}</button>
+          ))}
+          <span className="note">ou clique em “Ver como” em cada usuário</span>
+        </div>
+      )}
       <div className="users">
         {lista.map((p) => (
-          <LinhaUsuario key={p.id} p={p} dados={dados} online={dados.online.has(p.id)} admin={pode.admin} eu={eu} avisar={avisar} verAtividades={verAtividades} />
+          <LinhaUsuario key={p.id} p={p} dados={dados} online={dados.online.has(p.id)} admin={pode.admin} eu={eu} avisar={avisar} verAtividades={verAtividades} verComo={verComo} />
         ))}
       </div>
       {pode.admin && (
@@ -148,7 +158,7 @@ function Usuarios({ dados, eu, pode, avisar, verAtividades }) {
   );
 }
 
-function LinhaUsuario({ p, dados, online, admin, eu, avisar, verAtividades }) {
+function LinhaUsuario({ p, dados, online, admin, eu, avisar, verAtividades, verComo }) {
   const [nome, setNome] = useState(p.nome || '');
   const [grupo, setGrupo] = useState(p.cliente_grupo || '');
   const souEu = p.id === eu?.id;
@@ -205,6 +215,7 @@ function LinhaUsuario({ p, dados, online, admin, eu, avisar, verAtividades }) {
         </span>
         <span>Última modificação {tempoRelativo(p.ultima_modificacao)}</span>
         {admin && <button type="button" className="link-btn" style={{ alignSelf: 'flex-start', fontSize: 12, color: 'var(--brand-text)' }} onClick={() => verAtividades(p.id)}>Ver atividades</button>}
+        {verComo && !souEu && <button type="button" className="link-btn" style={{ alignSelf: 'flex-start', fontSize: 12, color: 'var(--brand-text)' }} onClick={() => verComo(p.id)}>Ver como {(p.nome || p.email || '').split(' ')[0]}</button>}
       </div>
     </div>
   );
@@ -216,7 +227,7 @@ function lerPrefs() {
 
 // Frases do dia (aparecem para o campo e no Início): administradores cadastram
 // ---------- Clientes (Help, Agplan…) ----------
-function Clientes({ dados, avisar }) {
+function Clientes({ dados, avisar, verComo }) {
   const [novo, setNovo] = useState('');
   const [editando, setEditando] = useState(null); // { id, nome }
   const falta = dados.faltando.has('clientes');
@@ -260,7 +271,8 @@ function Clientes({ dados, avisar }) {
                   {editando?.id === c.id
                     ? <><button type="button" className="link-btn" onClick={renomear}>Salvar</button><button type="button" className="link-btn" onClick={() => setEditando(null)}>Cancelar</button></>
                     : <><button type="button" className="link-btn" onClick={() => setEditando({ id: c.id, nome: c.nome })}>Renomear</button>
-                      <button type="button" className="link-btn" onClick={() => dados.atualizarCliente(c.id, { ativo: c.ativo === false })}>{c.ativo === false ? 'Mostrar' : 'Esconder'}</button></>}
+                      <button type="button" className="link-btn" onClick={() => dados.atualizarCliente(c.id, { ativo: c.ativo === false })}>{c.ativo === false ? 'Mostrar' : 'Esconder'}</button>
+                      {verComo && <button type="button" className="link-btn" onClick={() => verComo('cliente:' + c.nome)}>Ver portal</button>}</>}
                 </span>
               </li>
             ))}
