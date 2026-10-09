@@ -222,7 +222,7 @@ function TopoCampo({ previa }) {
   return (
     <header className="campo-topo">
       <button type="button" className="brand campo-logo" onClick={tocar} aria-label="EQL Group">
-        <img className="brand-logo" src="/img/logo-96.png" alt="" width="36" height="36" />
+        <img className="brand-logo" src="/img/logo-96.png?v=2" alt="" width="36" height="36" />
         <span className="brand-name">EQL Group</span>
       </button>
     </header>

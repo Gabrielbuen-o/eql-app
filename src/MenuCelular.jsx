@@ -45,7 +45,7 @@ export function TopoCelular({ abas, atual, sub, pode, eu, usuario, irAba, abrirM
       <div className="m-topo-linha">
         <button type="button" className="m-btn" aria-label="Abrir menu" onClick={abrirMenu}><Icone nome="menu" /></button>
         <button type="button" className="m-marca" onClick={() => irAba(abas.some((a) => a.id === 'inicio') ? 'inicio' : abas[0].id)} aria-label="EQL Group, ir para o início">
-          <img src="/img/logo-96.png" alt="" width="30" height="30" /><span>EQL Group</span>
+          <img src="/img/logo-96.png?v=2" alt="" width="30" height="30" /><span>EQL Group</span>
         </button>
         <button type="button" className="m-btn m-eu" aria-label="Configurações" onClick={() => irAba('config')}>
           <Avatar perfil={eu} nome={usuario.email} online />
@@ -92,7 +92,7 @@ export function GavetaMenu({ aberto, fechar, abas, atual, sub, pode, eu, usuario
     <div className="m-gaveta-fundo" onMouseDown={(e) => e.target === e.currentTarget && fechar()}>
       <aside className="m-gaveta" role="dialog" aria-modal="true" aria-label="Menu">
         <div className="m-gaveta-topo">
-          <span className="m-marca estatica"><img src="/img/logo-96.png" alt="" width="30" height="30" /><span>EQL Group</span></span>
+          <span className="m-marca estatica"><img src="/img/logo-96.png?v=2" alt="" width="30" height="30" /><span>EQL Group</span></span>
           <button type="button" className="m-btn" aria-label="Fechar menu" onClick={fechar}><Icone nome="fechar" /></button>
         </div>
         <nav className="m-gaveta-lista">

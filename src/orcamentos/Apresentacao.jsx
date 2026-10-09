@@ -18,7 +18,7 @@ export function Apresentacao({ pc, travado, entrada, mudar, onFechar }) {
   return createPortal(
     <div className="apr" role="dialog" aria-modal="true" aria-label="Apresentação da proposta">
       <header className="apr-topo">
-        <div className="apr-marca"><img src="/img/logo-96.png" alt="" width="40" height="40" /><div><b>EQL Group</b><span>Muros pré-moldados</span></div></div>
+        <div className="apr-marca"><img src="/img/logo-96.png?v=2" alt="" width="40" height="40" /><div><b>EQL Group</b><span>Muros pré-moldados</span></div></div>
         {!pc.final && <span className="apr-previa">Prévia</span>}
         <button type="button" className="pill" onClick={onFechar}>Sair da apresentação</button>
       </header>

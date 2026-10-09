@@ -330,7 +330,7 @@ function FaixaComo({ como, sair }) {
 function Marca() {
   return (
     <div className="brand">
-      <img className="brand-logo" src="/img/logo-96.png" alt="" width="44" height="44" />
+      <img className="brand-logo" src="/img/logo-96.png?v=2" alt="" width="44" height="44" />
       <div>
         <div className="brand-name">EQL Group</div>
         <div className="brand-sub">{SLOGAN}</div>

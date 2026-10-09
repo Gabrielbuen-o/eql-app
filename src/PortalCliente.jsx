@@ -66,7 +66,7 @@ export function PortalCliente({ eu, usuario, grupoComo, onSairComo }) {
     <div className="pc">
       <header className="pc-topo">
         <button type="button" className="pc-marca" onClick={() => ir('/inicio')}>
-          <img src="/img/logo-96.png" alt="" width="36" height="36" />
+          <img src="/img/logo-96.png?v=2" alt="" width="36" height="36" />
           <span><b>EQL Group</b><small>Portal {p?.grupo || 'do cliente'}</small></span>
         </button>
         <div className="pc-conta">

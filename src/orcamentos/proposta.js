@@ -80,7 +80,7 @@ const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 export function abrirPdf(pc) {
   const w = window.open('', '_blank');
   if (!w) return false;
-  const logo = `${location.origin}/img/logo-96.png`;
+  const logo = `${location.origin}/img/logo-96.png?v=2`;
   const linha = (rot, val) => `<tr><td>${esc(rot)}</td><td class="v">${val}</td></tr>`;
   w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Proposta ${esc(pc.numero)} — ${esc(pc.cliente || 'EQL')}</title>
 <style>
