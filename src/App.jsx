@@ -158,6 +158,12 @@ function Painel({ usuario }) {
   useEffect(() => {
     document.body.classList.toggle('tv', tv);
   }, [tv]);
+  // celular: a aba atual aparece na barra de abas (que rola de lado)
+  useEffect(() => {
+    if (!window.matchMedia?.('(max-width: 899px)').matches) return;
+    const el = document.querySelector('.nav button.sub.on') || document.querySelector('.nav button.on, .nav button.parent');
+    el?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  }, [idTela]);
   // saiu da tela cheia (Esc) → sai do modo TV
   const setTvRef = useRef(setTv); setTvRef.current = setTv;
   useEffect(() => {

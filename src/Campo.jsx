@@ -815,6 +815,8 @@ export function VerRelatorio({ r, dados, onFechar, onApagar, exportarRfi = false
             <span>{foco + 1} / {fotos.length}{nomeEtapa(fotos[foco].etapa) ? ` · ${nomeEtapa(fotos[foco].etapa)}` : ''}{fotos[foco].quando ? ` · ${new Date(fotos[foco].quando).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}</span>
             <button type="button" className="pill" disabled={foco === fotos.length - 1} onClick={() => setFoco(foco + 1)} aria-label="Próxima">›</button>
             {fotos[foco].lat != null && <a className="pill" href={linkMapa(fotos[foco].lat, fotos[foco].lon)} target="_blank" rel="noreferrer">Ver no mapa</a>}
+            {/* o app não dá zoom; a foto aberta sozinha dá (pinça) */}
+            <a className="pill" href={dados.urlArquivo(fotos[foco].caminho)} target="_blank" rel="noreferrer">Ampliar</a>
             <button type="button" className="pill" disabled={!!baixando} onClick={() => baixar([fotos[foco]])}>{baixando || 'Baixar'}</button>
             <button type="button" className="pill" onClick={() => setFoco(null)}>Fechar</button>
           </div>
