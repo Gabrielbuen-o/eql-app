@@ -42,18 +42,24 @@ const ABAS = [
 
 export function App() {
   const [sessao, setSessao] = useState(undefined);
+  const [recuperando, setRecuperando] = useState(false);
 
   useEffect(() => {
     aplicarPrefs(lerLocal('eql-prefs'));
     if (!configurado) return;
     supabase.auth.getSession().then(({ data }) => setSessao(data.session));
-    const { data } = supabase.auth.onAuthStateChange((_e, s) => setSessao(s));
+    const { data } = supabase.auth.onAuthStateChange((evento, s) => {
+      // link do e-mail de "Esqueci a senha": o usuário precisa definir a nova senha antes de entrar
+      if (evento === 'PASSWORD_RECOVERY') setRecuperando(true);
+      setSessao(s);
+    });
     return () => data.subscription.unsubscribe();
   }, []);
 
   if (!configurado) return <SemConfig />;
   if (sessao === undefined) return <div className="login"><p className="empty">Carregando…</p></div>;
   if (!sessao) return <Login />;
+  if (recuperando) return <NovaSenha aoConcluir={() => setRecuperando(false)} />;
   return <Painel usuario={sessao.user} />;
 }
 
@@ -344,10 +350,21 @@ function Login() {
   const [email, setEmail] = useState(() => lerLocal('eql-ultimo-email', false) || '');
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState('');
+  const [aviso, setAviso] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const esqueci = async () => {
+    setErro(''); setAviso('');
+    if (!email.trim()) { setErro('Digite seu e-mail acima para receber o link.'); return; }
+    setEnviando(true);
+    // a resposta é a mesma existindo ou não o e-mail, para não revelar quem tem conta
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin });
+    setEnviando(false);
+    if (error) { setErro('Não foi possível enviar agora. Tente de novo em alguns minutos.'); return; }
+    setAviso('Se este e-mail tiver acesso ao app, você vai receber um link para criar uma nova senha.');
+  };
   const entrar = async (e) => {
     e.preventDefault();
-    setErro(''); setEnviando(true);
+    setErro(''); setAviso(''); setEnviando(true);
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: senha });
     setEnviando(false);
     if (error) { setErro(error.message === 'Invalid login credentials' ? 'E-mail ou senha incorretos.' : error.message); return; }
@@ -365,6 +382,7 @@ function Login() {
         <Marca />
         <h1 style={{ fontSize: 24, fontWeight: 800 }}>Entrar</h1>
         {erro && <div className="err" role="alert">{erro}</div>}
+        {aviso && <div className="note" role="status">{aviso}</div>}
         <label className="field" htmlFor="login-email"><span>E-mail</span>
           <input id="login-email" name="email" type="email" inputMode="email" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false}
             value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus={!email} />
@@ -374,6 +392,44 @@ function Login() {
             value={senha} onChange={(e) => setSenha(e.target.value)} required autoFocus={!!email} />
         </label>
         <button type="submit" className="pill lime" style={{ minHeight: 48 }} disabled={enviando}>{enviando ? 'Entrando…' : 'Entrar'}</button>
+        <button type="button" className="pill ghost" style={{ minHeight: 44, marginTop: 8 }} disabled={enviando} onClick={esqueci}>Esqueci minha senha</button>
+      </form>
+    </div>
+  );
+}
+
+// tela que aparece ao abrir o link do e-mail de recuperação
+function NovaSenha({ aoConcluir }) {
+  const [senha, setSenha] = useState('');
+  const [confirmar, setConfirmar] = useState('');
+  const [erro, setErro] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const salvar = async (e) => {
+    e.preventDefault();
+    setErro('');
+    if (senha.length < 8) { setErro('A senha precisa ter pelo menos 8 caracteres.'); return; }
+    if (senha !== confirmar) { setErro('As duas senhas não são iguais.'); return; }
+    setEnviando(true);
+    const { error } = await supabase.auth.updateUser({ password: senha });
+    setEnviando(false);
+    if (error) { setErro('Não foi possível salvar a senha. Peça um novo link e tente de novo.'); return; }
+    aoConcluir();
+  };
+  return (
+    <div className="login">
+      <form className="card" id="nova-senha" onSubmit={salvar} autoComplete="on">
+        <Marca />
+        <h1 style={{ fontSize: 24, fontWeight: 800 }}>Criar nova senha</h1>
+        {erro && <div className="err" role="alert">{erro}</div>}
+        <label className="field" htmlFor="nova-senha-1"><span>Nova senha</span>
+          <input id="nova-senha-1" name="password" type="password" autoComplete="new-password" minLength={8}
+            value={senha} onChange={(e) => setSenha(e.target.value)} required autoFocus />
+        </label>
+        <label className="field" htmlFor="nova-senha-2"><span>Repita a nova senha</span>
+          <input id="nova-senha-2" name="password-confirm" type="password" autoComplete="new-password" minLength={8}
+            value={confirmar} onChange={(e) => setConfirmar(e.target.value)} required />
+        </label>
+        <button type="submit" className="pill lime" style={{ minHeight: 48 }} disabled={enviando}>{enviando ? 'Salvando…' : 'Salvar senha e entrar'}</button>
       </form>
     </div>
   );
