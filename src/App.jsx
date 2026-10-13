@@ -17,6 +17,7 @@ import { CalendarioObras } from './CalendarioObras.jsx';
 import { EstoqueEPI } from './EstoqueEPI.jsx';
 import { Orcamentos } from './Orcamentos.jsx';
 import { PortalCliente } from './PortalCliente.jsx';
+import { CampoSenha } from './CampoSenha.jsx';
 import { AbasCelular, GavetaMenu, Icone, TopoCelular } from './MenuCelular.jsx';
 import { tipoRelatorio } from './lib.js';
 import { TITULOS, caminhoDaAba, lerCaminho, navegar, useCaminho } from './rota.js';
@@ -388,7 +389,7 @@ function Login() {
             value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus={!email} />
         </label>
         <label className="field" htmlFor="login-senha"><span>Senha</span>
-          <input id="login-senha" name="password" type="password" autoComplete="current-password"
+          <CampoSenha id="login-senha" name="password" autoComplete="current-password"
             value={senha} onChange={(e) => setSenha(e.target.value)} required autoFocus={!!email} />
         </label>
         <button type="submit" className="pill lime" style={{ minHeight: 48 }} disabled={enviando}>{enviando ? 'Entrando…' : 'Entrar'}</button>
@@ -422,11 +423,11 @@ function NovaSenha({ aoConcluir }) {
         <h1 style={{ fontSize: 24, fontWeight: 800 }}>Criar nova senha</h1>
         {erro && <div className="err" role="alert">{erro}</div>}
         <label className="field" htmlFor="nova-senha-1"><span>Nova senha</span>
-          <input id="nova-senha-1" name="password" type="password" autoComplete="new-password" minLength={8}
+          <CampoSenha id="nova-senha-1" name="password" autoComplete="new-password" minLength={8}
             value={senha} onChange={(e) => setSenha(e.target.value)} required autoFocus />
         </label>
         <label className="field" htmlFor="nova-senha-2"><span>Repita a nova senha</span>
-          <input id="nova-senha-2" name="password-confirm" type="password" autoComplete="new-password" minLength={8}
+          <CampoSenha id="nova-senha-2" name="password-confirm" autoComplete="new-password" minLength={8}
             value={confirmar} onChange={(e) => setConfirmar(e.target.value)} required />
         </label>
         <button type="submit" className="pill lime" style={{ minHeight: 48 }} disabled={enviando}>{enviando ? 'Salvando…' : 'Salvar senha e entrar'}</button>
