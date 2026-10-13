@@ -4,6 +4,15 @@ import { createClient } from '@supabase/supabase-js';
 export const SUPABASE_URL = __SUPABASE_URL__;
 export const SUPABASE_ANON_KEY = __SUPABASE_ANON_KEY__;
 export const configurado = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+// Link de convite ou de "Esqueci a senha": lido antes do Supabase limpar o endereço,
+// para o app pedir a criação da senha antes de abrir o painel.
+export const LINK_DE_SENHA = (() => {
+  try { return (/[#&]type=(invite|recovery)\b/.exec(window.location.hash) || [])[1] || null; } catch { return null; }
+})();
+// link do e-mail que já expirou ou já foi usado
+export const LINK_EXPIRADO = (() => {
+  try { return /error_code=otp_expired|error=access_denied/.test(window.location.hash); } catch { return false; }
+})();
 export const supabase = configurado ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 // ---------- Empresas, fases ----------

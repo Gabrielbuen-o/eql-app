@@ -1,6 +1,6 @@
 import { Component, useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { SLOGAN, aplicarPrefs, configurado, papelNome, permissoes, supabase } from './lib.js';
+import { LINK_DE_SENHA, LINK_EXPIRADO, SLOGAN, aplicarPrefs, configurado, papelNome, permissoes, supabase } from './lib.js';
 import { useData } from './useData.js';
 import { useCustos } from './custos.js';
 import { Demandas } from './Demandas.jsx';
@@ -43,7 +43,8 @@ const ABAS = [
 
 export function App() {
   const [sessao, setSessao] = useState(undefined);
-  const [recuperando, setRecuperando] = useState(false);
+  // 'invite' (convite) ou 'recovery' (esqueci a senha): pede a senha antes de abrir o painel
+  const [recuperando, setRecuperando] = useState(LINK_DE_SENHA);
 
   useEffect(() => {
     aplicarPrefs(lerLocal('eql-prefs'));
@@ -51,7 +52,7 @@ export function App() {
     supabase.auth.getSession().then(({ data }) => setSessao(data.session));
     const { data } = supabase.auth.onAuthStateChange((evento, s) => {
       // link do e-mail de "Esqueci a senha": o usuário precisa definir a nova senha antes de entrar
-      if (evento === 'PASSWORD_RECOVERY') setRecuperando(true);
+      if (evento === 'PASSWORD_RECOVERY') setRecuperando((r) => r || 'recovery');
       setSessao(s);
     });
     return () => data.subscription.unsubscribe();
@@ -60,7 +61,7 @@ export function App() {
   if (!configurado) return <SemConfig />;
   if (sessao === undefined) return <div className="login"><p className="empty">Carregando…</p></div>;
   if (!sessao) return <Login />;
-  if (recuperando) return <NovaSenha aoConcluir={() => setRecuperando(false)} />;
+  if (recuperando) return <NovaSenha convite={recuperando === 'invite'} usuario={sessao.user} aoConcluir={() => setRecuperando(null)} />;
   return <Painel usuario={sessao.user} />;
 }
 
@@ -350,7 +351,7 @@ function Login() {
   // último e-mail usado fica salvo neste aparelho (a senha fica com o gerenciador de senhas do navegador)
   const [email, setEmail] = useState(() => lerLocal('eql-ultimo-email', false) || '');
   const [senha, setSenha] = useState('');
-  const [erro, setErro] = useState('');
+  const [erro, setErro] = useState(LINK_EXPIRADO ? 'Este link expirou ou já foi usado. Digite seu e-mail e toque em "Esqueci minha senha" para receber outro.' : '');
   const [aviso, setAviso] = useState('');
   const [enviando, setEnviando] = useState(false);
   const esqueci = async () => {
@@ -400,7 +401,7 @@ function Login() {
 }
 
 // tela que aparece ao abrir o link do e-mail de recuperação
-function NovaSenha({ aoConcluir }) {
+function NovaSenha({ convite = false, usuario, aoConcluir }) {
   const [senha, setSenha] = useState('');
   const [confirmar, setConfirmar] = useState('');
   const [erro, setErro] = useState('');
@@ -420,17 +421,20 @@ function NovaSenha({ aoConcluir }) {
     <div className="login">
       <form className="card" id="nova-senha" onSubmit={salvar} autoComplete="on">
         <Marca />
-        <h1 style={{ fontSize: 24, fontWeight: 800 }}>Criar nova senha</h1>
+        <h1 style={{ fontSize: 24, fontWeight: 800 }}>{convite ? 'Bem-vindo! Crie sua senha' : 'Criar nova senha'}</h1>
+        {usuario?.email && <p className="note">Seu login: <b>{usuario.email}</b></p>}
         {erro && <div className="err" role="alert">{erro}</div>}
-        <label className="field" htmlFor="nova-senha-1"><span>Nova senha</span>
-          <CampoSenha id="nova-senha-1" name="password" autoComplete="new-password" minLength={8}
+        {/* campo oculto com o e-mail: o gerenciador de senhas salva a senha no login certo */}
+        <input type="email" name="email" autoComplete="username" value={usuario?.email || ''} readOnly hidden />
+        <label className="field" htmlFor="nova-senha-1"><span>{convite ? 'Senha' : 'Nova senha'}</span>
+          <CampoSenha id="nova-senha-1" name="password" autoComplete="new-password"
             value={senha} onChange={(e) => setSenha(e.target.value)} required autoFocus />
         </label>
         <label className="field" htmlFor="nova-senha-2"><span>Repita a nova senha</span>
-          <CampoSenha id="nova-senha-2" name="password-confirm" autoComplete="new-password" minLength={8}
+          <CampoSenha id="nova-senha-2" name="password-confirm" autoComplete="new-password"
             value={confirmar} onChange={(e) => setConfirmar(e.target.value)} required />
         </label>
-        <button type="submit" className="pill lime" style={{ minHeight: 48 }} disabled={enviando}>{enviando ? 'Salvando…' : 'Salvar senha e entrar'}</button>
+        <button type="submit" className="pill lime" style={{ minHeight: 48 }} disabled={enviando}>{enviando ? 'Salvando…' : (convite ? 'Criar senha e entrar' : 'Salvar senha e entrar')}</button>
       </form>
     </div>
   );
