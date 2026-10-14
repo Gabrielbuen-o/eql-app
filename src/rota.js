@@ -56,6 +56,7 @@ export function useBloqueioSaida(ativo, pergunta) {
 // id interno da aba (como o App usa) → caminho público
 const CAMINHOS = {
   inicio: '/inicio',
+  'demandas/geral': '/demandas/geral',
   'demandas/obras': '/demandas/obras',
   'demandas/fabrica': '/demandas/fabrica',
   'calendario/agenda': '/calendario',
@@ -73,7 +74,7 @@ const ALIAS = { '/demandas': 'demandas', '/calendario/agenda': 'calendario/agend
 const PORCAMINHO = Object.fromEntries(Object.entries(CAMINHOS).map(([id, c]) => [c, id]));
 
 export function caminhoDaAba(id) {
-  return CAMINHOS[id] || CAMINHOS[id + '/' + ({ demandas: 'obras', calendario: 'agenda' }[id] || '')] || '/' + id;
+  return CAMINHOS[id] || CAMINHOS[id + '/' + ({ demandas: 'geral', calendario: 'agenda' }[id] || '')] || '/' + id;
 }
 
 // Lê o endereço: { tv, aba, resto[] }. Ex.: /tv/calendario → tv, calendario/agenda
@@ -91,7 +92,7 @@ export function lerCaminho(caminho) {
 }
 
 export const TITULOS = {
-  inicio: 'Início', 'demandas/obras': 'Obras', 'demandas/fabrica': 'Fábrica', 'calendario/agenda': 'Calendário de obras',
+  inicio: 'Início', 'demandas/geral': 'Demandas', 'demandas/obras': 'Obras', 'demandas/fabrica': 'Fábrica', 'calendario/agenda': 'Calendário de obras',
   'calendario/relatorios': 'Relatórios de obra', orcamentos: 'Orçamentos', equipes: 'Equipes', frotas: 'Frotas',
   epi: 'Estoque de EPI', financeiro: 'Financeiro', rh: 'RH & Ponto', aquisicao: 'Aquisição', config: 'Configurações',
 };

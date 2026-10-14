@@ -155,7 +155,7 @@ export function Demandas({ dados, tv, setTv, avisar, pode, custos, modo = 'geral
   );
 }
 
-function CartaoDemanda({ d, dia, onAbrir, res }) {
+export function CartaoDemanda({ d, dia, onAbrir, res }) {
   if (d.arquivada && d.empresa !== 'eko') return <CartaoConcluido d={d} onAbrir={onAbrir} res={res} />;
   const sit = situacao(d, dia);
   const pct = percentual(d);

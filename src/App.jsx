@@ -11,6 +11,7 @@ import { Avatar } from './Avatar.jsx';
 import { Resultados } from './Resultados.jsx';
 import { Inicio } from './Inicio.jsx';
 import { Fabrica } from './Fabrica.jsx';
+import { DemandasGeral } from './DemandasGeral.jsx';
 import { AppCampo } from './Campo.jsx';
 import { Relatorios } from './Relatorios.jsx';
 import { CalendarioObras } from './CalendarioObras.jsx';
@@ -26,7 +27,8 @@ import { TITULOS, caminhoDaAba, lerCaminho, navegar, useCaminho } from './rota.j
 const ABAS = [
   { id: 'inicio', nome: 'Início', mostrar: (p) => p.verOperacao },
   { id: 'demandas', nome: 'Demandas', mostrar: () => true,
-    sub: [{ id: 'obras', nome: 'Obras', mostrar: () => true },
+    sub: [{ id: 'geral', nome: 'Geral', mostrar: () => true },
+      { id: 'obras', nome: 'Obras', mostrar: () => true },
       { id: 'fabrica', nome: 'Fábrica', mostrar: (p) => p.verOperacao }] },
   { id: 'calendario', nome: 'Calendário de obras', mostrar: (p) => p.verOperacao,
     sub: [{ id: 'agenda', nome: 'Agenda', mostrar: () => true },
@@ -262,6 +264,8 @@ function Painel({ usuario }) {
           <ProtecaoErro chave={idTela}>
           {dados.carregando ? (
             <p className="empty">Carregando dados…</p>
+          ) : atual.id === 'demandas' && sub === 'geral' ? (
+            <DemandasGeral dados={dados} tv={tv} setTv={setTv} pode={pode} custos={custos.porDemanda} irSub={(s) => navegar('/demandas/' + s)} />
           ) : atual.id === 'demandas' && sub === 'fabrica' ? (
             <Fabrica dados={dados} tv={tv} setTv={setTv} pode={pode} custos={custos.porDemanda} />
           ) : atual.id === 'demandas' ? (

@@ -1709,3 +1709,19 @@ html, body { overscroll-behavior-y: none; } /* o do navegador fica desligado: us
 .pdf-outro summary { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; cursor: pointer; font-weight: 700; font-size: 14px; }
 .pdf-outro[open] { gap: 8px; }
 .pdf-outro[open] > .link-btn { align-self: flex-start; margin: 6px 0; }
+
+/* ---------- Demandas · Geral (obras + fábrica) ---------- */
+.geral-board.n3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.geral-board.n2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .geral-board.n3, .geral-board.n2 { grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); } }
+.geral-col { border-top: 4px solid var(--line-strong); }
+.geral-col.emp-engenharia { border-top-color: var(--s-eng); }
+.geral-col.emp-impermeabilizacao { border-top-color: var(--s-imp); }
+.geral-col.emp-eko { border-top-color: var(--s-eko); }
+.geral-col .col-title > div { display: flex; flex-direction: column; gap: 1px; }
+.geral-tipo { font-size: 11px; font-weight: 600; color: var(--muted); }
+.geral-alerta { align-self: flex-start; font-size: 11px; font-weight: 800; color: var(--late-ink); background: var(--red-soft); padding: 3px 9px; border-radius: 999px; margin-top: -6px; }
+.geral-etapa { display: flex; align-items: center; gap: 6px; }
+.geral-etapa .dot { width: 8px; height: 8px; }
+.geral-pe { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+.geral-pe .link-btn { align-self: center; font-size: 13px; }
