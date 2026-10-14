@@ -451,11 +451,15 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
   const fotosDaEtapa = (eid) => itens.filter((i) => i.tipo !== 'video' && i.etapa === eid);
   const etapasSemFoto = etapas ? etapas.filter((e) => !fotosDaEtapa(e.id).length) : [];
   const semEstrutura = estruturado && !(estrutura || []).length;
-  const podeConcluir = itens.length > 0 && !etapasSemFoto.length && !semEstrutura;
+  // ancoragem pode ser entregue com etapa sem foto (com aviso); RFI precisa de todas
+  const podeConcluir = itens.length > 0 && !semEstrutura && (estruturado || !etapasSemFoto.length);
+  const faltando = estruturado ? etapasSemFoto : [];
   const fotosNaBase = (bid) => itens.filter((i) => i.etapa && i.etapa.startsWith(bid + ':')).length;
   const bases = estruturado ? basesDaEstrutura(estrutura) : [];
-  const concluir = async () => {
+  const [confirmarFalta, setConfirmarFalta] = useState(false);
+  const concluir = async (mesmoAssim = false) => {
     if (!podeConcluir || processando) return;
+    if (faltando.length && !mesmoAssim) { setConfirmarFalta(true); return; }
     await concluirRascunho(id, { observacao: obs, funcionario_id: funcId || null });
     setPendentesFim(itens.filter((i) => !i.enviado).length);
     setEtapa('ok');
@@ -660,12 +664,27 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
 
           {erro && <div className="err" role="alert">{erro}</div>}
 
+          {faltando.length > 0 && itens.length > 0 && (
+            <div className={'campo-aviso-falta' + (confirmarFalta ? ' forte' : '')} role="status">
+              <b>Falta foto em {faltando.length} {faltando.length === 1 ? 'etapa' : 'etapas'}</b>
+              <span>{[...new Set(faltando.map((e) => e.sigla))].map((sg) => {
+                const fs = faltando.filter((e) => e.sigla === sg);
+                return `${sg}: ${fs.length === 11 ? 'todas as etapas' : fs.map((e) => e.nome).join(', ')}`;
+              }).join(' · ')}</span>
+              {confirmarFalta ? (
+                <span className="campo-aviso-acoes">Entregar mesmo assim? O escritório vai ver quais etapas ficaram sem foto.
+                  <button type="button" className="pill danger" onClick={() => { setConfirmarFalta(false); concluir(true); }}>Sim, entregar assim</button>
+                  <button type="button" className="link-btn" onClick={() => setConfirmarFalta(false)}>Voltar e tirar as fotos</button></span>
+              ) : <span>Dá para entregar assim, mas o ideal é completar.</span>}
+            </div>
+          )}
           <div className="campo-enviar">
             {itens.length > 0 && (
               <span className="note">{naoSubiram ? `${itens.length - naoSubiram} de ${itens.length} já no sistema · ${envio.online ? 'subindo o resto…' : 'sem sinal: sobe quando voltar'}` : 'Tudo salvo no sistema ✓'}</span>
             )}
-            <button type="button" className="campo-novo" disabled={!podeConcluir || !!processando} onClick={concluir}>
+            <button type="button" className="campo-novo" disabled={!podeConcluir || !!processando} onClick={() => concluir()}>
               {processando ? 'Preparando foto…' : !demandaId ? 'Escolha a obra' : semEstrutura ? 'Adicione um mastro ou skid' : !itens.length ? 'Tire pelo menos 1 foto'
+                : faltando.length ? 'Concluir com fotos faltando'
                 : etapasSemFoto.length ? `Falta foto em ${etapasSemFoto.length} ${etapasSemFoto.length === 1 ? 'etapa' : 'etapas'}` : 'Concluir relatório'}
             </button>
             {travado && (confirmarApagar ? (
@@ -870,6 +889,10 @@ export function VerRelatorio({ r, dados, onFechar, onApagar, exportarRfi = false
             <button type="button" className="pill ghost" onClick={onFechar}>Fechar</button>
           </div>
         </div>
+        {r.tipo === 'ancoragem' && etapasTipo?.length > 0 && (() => {
+          const sem = etapasTipo.filter((e) => !fotos.some((a) => a.etapa === e.id));
+          return sem.length > 0 && <p className="rel-aviso-falta">{r.status === 'rascunho' ? 'Ainda faltam' : 'Entregue com'} {sem.length} {sem.length === 1 ? 'etapa' : 'etapas'} sem foto: {[...new Set(sem.map((e) => e.sigla))].map((sg) => `${sg} (${sem.filter((e) => e.sigla === sg).length})`).join(', ')}</p>;
+        })()}
         {r.observacao && <p className="rel-obs">“{r.observacao}”</p>}
         {etapasTipo ? (
           <>

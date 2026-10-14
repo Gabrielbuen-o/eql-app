@@ -1725,3 +1725,11 @@ html, body { overscroll-behavior-y: none; } /* o do navegador fica desligado: us
 .geral-etapa .dot { width: 8px; height: 8px; }
 .geral-pe { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
 .geral-pe .link-btn { align-self: center; font-size: 13px; }
+
+/* ancoragem: aviso de etapas sem foto */
+.campo-aviso-falta { display: flex; flex-direction: column; gap: 4px; background: var(--yellow); color: var(--yellow-ink); border-radius: 14px; padding: 12px 14px; font-size: 13px; text-align: left; }
+.campo-aviso-falta b { font-size: 14px; }
+.campo-aviso-falta.forte { outline: 2px solid var(--late-ink); }
+.campo-aviso-acoes { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; font-weight: 600; }
+.campo-aviso-acoes .pill { align-self: stretch; min-height: 46px; }
+.rel-aviso-falta { background: var(--yellow); color: var(--yellow-ink); border-radius: 12px; padding: 8px 12px; font-size: 13px; font-weight: 600; }
