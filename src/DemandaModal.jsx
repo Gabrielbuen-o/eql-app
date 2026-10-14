@@ -1,6 +1,7 @@
 import { ClienteCampo } from './ClienteCampo.jsx';
 import { useEffect, useState } from 'react';
 import { CustosObra } from './CustosObra.jsx';
+import { AdicionaisObra, RecebimentosObra } from './FinanceiroObra.jsx';
 import { EMPRESAS, PAGAMENTOS, PRODUTOS_EKO, empresaPorId, fasesDe, resumoProducao, tempoRelativo } from './lib.js';
 
 const PADRAO_CONCRETO = '20 kg · 30 MPa';
@@ -11,7 +12,7 @@ const VAZIA = {
   produto: '', especificacao: '',
 };
 
-export function DemandaModal({ inicial, grupos, clientes = [], criarCliente = null, onFechar, onSalvar, onExcluir, limitado = false, perfis = [], financeiro = null }) {
+export function DemandaModal({ inicial, grupos, clientes = [], criarCliente = null, onFechar, onSalvar, onExcluir, limitado = false, perfis = [], financeiro = null, admin = false, gerente = false, dados = null }) {
   const [aba, setAba] = useState('dados');
   const novo = !inicial?.id;
   const [d, setD] = useState(() => ({ ...VAZIA, ...inicial, inicio: inicial?.inicio || '', entrega: inicial?.entrega || '', qtd_total: inicial?.qtd_total ?? '' }));
@@ -212,14 +213,20 @@ export function DemandaModal({ inicial, grupos, clientes = [], criarCliente = nu
           </>
         )}
 
-        <div className="field"><span>Pagamento</span>
-          <div className="seg three">
-            {PAGAMENTOS.map((p) => (
-              <button type="button" key={p.id} className={d.pagamento === p.id ? 'on' : ''} aria-pressed={d.pagamento === p.id}
-                disabled={L} onClick={() => set('pagamento')(p.id)}>{p.nome}</button>
-            ))}
+        {/* pagamento, recebimentos e valores: só administradores */}
+        {admin && (
+          <div className="field"><span>Pagamento</span>
+            <div className="seg three">
+              {PAGAMENTOS.map((p) => (
+                <button type="button" key={p.id} className={d.pagamento === p.id ? 'on' : ''} aria-pressed={d.pagamento === p.id}
+                  onClick={() => set('pagamento')(p.id)}>{p.nome}</button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
+        {admin && !novo && dados && <RecebimentosObra demanda={inicial} dados={dados} porDemanda={financeiro?.porDemanda} />}
+        {(admin || gerente) && !novo && dados && <AdicionaisObra demanda={inicial} dados={dados} admin={admin} euId={dados.euId} />}
+        {(admin || gerente) && !novo && dados && <p className="note" style={{ marginTop: -4 }}>{admin ? 'Entradas e adicionais são salvos na hora.' : 'Os adicionais são salvos na hora.'}</p>}
 
         <div className="modal-foot">
           <div className="row">

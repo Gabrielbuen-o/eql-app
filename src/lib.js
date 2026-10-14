@@ -227,12 +227,74 @@ export const ETAPAS_RFI = [
 ];
 export const recomendadas = (etapas) => etapas.reduce((s, e) => s + e.rec, 0);
 
+// ---------- Ancoragem: mastros (base + estaios) e skids (bases) ----------
+// Cada base passa pelas mesmas 11 etapas. O id da etapa na foto é "<base>:<passo>" (ex.: "m1e2:limpeza").
+// Não mude os ids depois de usar (ficam gravados nas fotos).
+// nome: como aparece no app · legenda: como sai no PDF (texto do modelo American Tower)
+export const PASSOS_ANCORAGEM = [
+  { id: 'area', nome: 'Área demarcada', legenda: 'Foto da área demarcada', rec: 1 },
+  { id: 'arranques', nome: 'Identificação e checagem dos arranques', legenda: 'Identificação e checagem dos arranques', rec: 2 },
+  { id: 'broca', nome: 'Profundidade marcada na broca', legenda: 'Marcar na broca a profundidade dos furos conforme solicitado em projeto.', rec: 1 },
+  { id: 'barra', nome: 'Dimensão da barra roscada', legenda: 'Dimensão da barra roscada', rec: 1 },
+  { id: 'perfuracao', nome: 'Perfuração dos furos conforme projeto', legenda: 'Perfuração dos furos conforme projeto', rec: 2 },
+  { id: 'limpeza', nome: 'Limpeza dos furos (até 4x por furo)', legenda: 'Limpar totalmente os furos por meio de aspiração total ou assopramento até (4x por furo) intercalando com devida escovação e checagem dos furos.', rec: 4 },
+  { id: 'profundidade', nome: 'Profundidade dos furos na laje', legenda: 'Profundidade dos furos na laje.', rec: 2 },
+  { id: 'chumbador', nome: 'Aplicação do chumbador químico', legenda: 'Aplicação do chumbador químico.', rec: 4 },
+  { id: 'concreto', nome: 'Concreto ensacado: lote e embalagem', legenda: 'Identificação do concreto ensacado - mostrando lote e embalagem', rec: 2 },
+  { id: 'cura', nome: 'Cura úmida', legenda: 'Cura úmida', rec: 3 },
+  { id: 'final', nome: 'Base finalizada', legenda: 'Base finalizada', rec: 1 },
+];
+export const ESTAIOS_PADRAO = 2;
+export const BASES_SKID_PADRAO = 4;
+
+// estrutura: [{ id: 'm1', tipo: 'mastro', n: 1, estaios: 2 }, { id: 's1', tipo: 'skid', n: 1, bases: 4 }]
+export function basesDaEstrutura(estrutura) {
+  const itens = Array.isArray(estrutura) ? estrutura : [];
+  const skids = itens.filter((i) => i.tipo === 'skid').length;
+  return itens.flatMap((i) => {
+    if (i.tipo === 'mastro') {
+      return [
+        { id: `m${i.n}t`, item: i.id, sigla: `M${i.n}T`, nome: `Mastro ${i.n} · Base do mastro` },
+        ...Array.from({ length: i.estaios ?? ESTAIOS_PADRAO }, (_, k) => ({ id: `m${i.n}e${k + 1}`, item: i.id, sigla: `M${i.n}T E${k + 1}`, nome: `Mastro ${i.n} · Estaio ${k + 1}` })),
+      ];
+    }
+    const pre = skids > 1 ? `SKID ${i.n}` : 'SKID';
+    return Array.from({ length: i.bases ?? BASES_SKID_PADRAO }, (_, k) => ({ id: `s${i.n}b${k + 1}`, item: i.id, sigla: `${pre} B${k + 1}`, nome: `Skid${skids > 1 ? ' ' + i.n : ''} · Base ${k + 1}` }));
+  });
+}
+export function etapasAncoragem(estrutura) {
+  return basesDaEstrutura(estrutura).flatMap((b) => PASSOS_ANCORAGEM.map((p) => ({
+    id: `${b.id}:${p.id}`, nome: p.nome, legenda: p.legenda, rec: p.rec, base: b.id, baseNome: b.nome, sigla: b.sigla,
+  })));
+}
+// etapas de um relatório já salvo (RFI: fixas; ancoragem: dependem dos mastros/skids dele)
+export function etapasDoRelatorio(r) {
+  const t = tipoRelatorio[r?.tipo];
+  if (t?.estruturado) return etapasAncoragem(r.estrutura);
+  return t?.etapas || null;
+}
+
+// ---------- Ausências: folga, férias e falta ----------
+export const TIPOS_AUSENCIA = [
+  { id: 'folga', nome: 'Folga' },
+  { id: 'ferias', nome: 'Férias' },
+  { id: 'falta', nome: 'Falta' },
+];
+export const ausenciaNome = (tipo) => (TIPOS_AUSENCIA.find((t) => t.id === tipo) || TIPOS_AUSENCIA[0]).nome;
+
+// ---------- Veículo fora de obra ----------
+export const MOTIVOS_VEICULO = [
+  { id: 'manutencao', nome: 'Manutenção' },
+  { id: 'outro', nome: 'Outro motivo' },
+];
+export const motivoVeiculoNome = (f) => (f?.motivo === 'outro' ? (f.observacao || 'Fora de obra') : 'Manutenção');
+
 export const TIPOS_RELATORIO = [
-  { id: 'inicio_dia', nome: 'Início do dia', curto: 'Início', desc: 'Como a obra está ao chegar', ativo: true },
-  { id: 'fim_dia', nome: 'Final do dia', curto: 'Fim', desc: 'O que foi feito hoje', ativo: true },
-  { id: 'limpeza', nome: 'Limpeza do dia', curto: 'Limpeza', desc: 'Local limpo e organizado', ativo: true },
+  { id: 'inicio_dia', nome: 'Início do dia', curto: 'Início', desc: 'Como a obra está ao chegar', ativo: true, diario: true },
+  { id: 'fim_dia', nome: 'Final do dia', curto: 'Fim', desc: 'O que foi feito hoje', ativo: true, diario: true },
+  { id: 'limpeza', nome: 'Limpeza do dia', curto: 'Limpeza', desc: 'Local limpo e organizado', ativo: true, diario: true },
   { id: 'rfi', nome: 'RFI', curto: 'RFI', desc: '26 etapas · 46 fotos recomendadas', ativo: true, etapas: ETAPAS_RFI },
-  { id: 'ancoragem', nome: 'Ancoragem', curto: 'Ancoragem', desc: 'Em breve', ativo: false },
+  { id: 'ancoragem', nome: 'Ancoragem', curto: 'Ancoragem', desc: 'Mastros e skids · 11 etapas por base', ativo: true, estruturado: true },
   { id: 'entrega_obra', nome: 'Entrega de obra', curto: 'Entrega', desc: 'Em breve', ativo: false },
 ];
 export const tipoRelatorio = Object.fromEntries(TIPOS_RELATORIO.map((t) => [t.id, t]));

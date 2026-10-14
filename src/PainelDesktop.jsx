@@ -2,10 +2,7 @@ import { useLargura } from './useLargura.js';
 import { useEffect, useMemo, useState } from 'react';
 import { PainelFinanceiro, useMesFinanceiro, useResumoFinanceiro } from './PainelFinanceiro.jsx';
 import { brl } from './custos.js';
-import {
-  mensagemDoDia, saudacao,
-  EMPRESAS, addDias, diaSemana, diffDias, empresaPorId, faseNome, fmt, hoje, inicioSemana, parse, percentual, rotuloPrazo, situacao,
-} from './lib.js';
+import { mensagemDoDia, saudacao, EMPRESAS, addDias, diaSemana, diffDias, empresaPorId, faseNome, fmt, hoje, inicioSemana, parse, percentual, rotuloPrazo, situacao, ausenciaNome } from './lib.js';
 
 // Painel do Início no computador / modo TV: operação completa, sem valores financeiros.
 const PESO = { atrasada: 0, urgente: 1, semana: 2, ok: 3, sem: 4 };
@@ -206,8 +203,8 @@ export function PainelDesktop({ dados, eu, irPara, tv, setTv, pode, porDemanda }
             <div className="today-chips">
               {livres.map((f) => <span key={f.id} className="t-chip livre">{f.nome}</span>)}
               {fora.map((a) => (
-                <span key={a.id} className={'t-chip ' + (a.tipo === 'ferias' ? 'ferias' : 'folga')}>
-                  {nomeFunc[a.funcionario_id] || '?'} · {a.tipo === 'ferias' ? 'férias' : 'folga'}
+                <span key={a.id} className={'t-chip ' + (a.tipo || 'folga')}>
+                  {nomeFunc[a.funcionario_id] || '?'} · {ausenciaNome(a.tipo).toLowerCase()}
                 </span>
               ))}
               {!livres.length && !fora.length && <span className="empty" style={{ padding: 0 }}>Todo mundo está em obra.</span>}
@@ -523,7 +520,7 @@ function HojeResumo({ obrasHoje, porObra, abertas, atencao, sit, dia, veicAtivos
         <div className="hoje-tile t-pessoas">
           <span className="hoje-tile-l">Pessoas livres</span>
           <span className="hoje-tile-v">{livres.length}</span>
-          <span className="hoje-tile-h">{fora.length ? `${fora.length} de folga/férias` : 'ninguém de folga'}</span>
+          <span className="hoje-tile-h">{fora.length ? `${fora.length} fora (folga, férias ou falta)` : 'ninguém fora hoje'}</span>
         </div>
       </div>
 

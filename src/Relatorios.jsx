@@ -7,7 +7,7 @@ const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 
 // Relatórios de obra (administradores e gerente): calendário dia / semana / mês.
 // Em cada dia: primeiro as obras com gente operando, depois as sem equipe.
-const DIARIOS = TIPOS_RELATORIO.filter((t) => t.ativo); // esperados todo dia em obra com equipe
+const DIARIOS = TIPOS_RELATORIO.filter((t) => t.diario); // esperados todo dia em obra com equipe (RFI e ancoragem não)
 const MODOS = [{ id: 'dia', nome: 'Dia' }, { id: 'semana', nome: 'Semana' }, { id: 'mes', nome: 'Mês' }];
 const OBRAS = EMPRESAS.filter((e) => e.id !== 'eko');
 
@@ -250,7 +250,7 @@ function estado(l, t, dia, hojeIso) {
 }
 
 function CartaoObra({ l, dia, hojeIso, nomeFunc, onAbrir, compacto, dados, onNovo }) {
-  const extras = l.rels.filter((r) => !tipoRelatorio[r.tipo]?.ativo);
+  const extras = l.rels.filter((r) => !tipoRelatorio[r.tipo]?.diario);
   const emp = empresaPorId[l.d.empresa];
   if (compacto) {
     return (
@@ -286,7 +286,7 @@ function CartaoObra({ l, dia, hojeIso, nomeFunc, onAbrir, compacto, dados, onNov
         </div>
       </div>
       <div className="rel-chips">{l.pessoas.map((p) => <span key={p} className="chip">{nomeFunc(p)}</span>)}</div>
-      {dia <= hojeIso && [...DIARIOS, ...TIPOS_RELATORIO.filter((t) => !t.ativo && l.rels.some((r) => r.tipo === t.id))].map((t) => {
+      {dia <= hojeIso && [...DIARIOS, ...TIPOS_RELATORIO.filter((t) => !t.diario && l.rels.some((r) => r.tipo === t.id))].map((t) => {
         const e = estado(l, t, dia, hojeIso);
         if (!e) return null;
         return (

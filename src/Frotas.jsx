@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { addDias, diaSemana, diffDias, fmt, hoje, inicioSemana } from './lib.js';
+import { MOTIVOS_VEICULO, addDias, diaSemana, diffDias, fmt, hoje, inicioSemana, motivoVeiculoNome } from './lib.js';
 
 const VAZIO = { nome: '', placa: '', tipo: '', proxima_manutencao: '', observacoes: '' };
 
@@ -37,6 +37,7 @@ export function Frotas({ dados }) {
   };
   const obrasNoDia = (vid, d) =>
     dados.veiculo_alocacoes.filter((a) => a.veiculo_id === vid && a.dia === d).map((a) => demandaNome[a.demanda_id]).filter(Boolean);
+  const foraNoDia = (vid, d) => (dados.veiculo_fora || []).find((f) => f.veiculo_id === vid && f.dia === d);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -98,12 +99,15 @@ export function Frotas({ dados }) {
                   </div>
                   {v.placa && <span className="plate">{v.placa}</span>}
                 </div>
-                <span className={'badge ' + (hojeEm.length ? 'green' : '')}>{hojeEm.length ? 'Hoje: ' + hojeEm.join(', ') : 'Sem obra hoje'}</span>
+                {foraNoDia(v.id, dia)
+                  ? <span className="badge yellow">Hoje: {motivoVeiculoNome(foraNoDia(v.id, dia)).toLowerCase()}</span>
+                  : <span className={'badge ' + (hojeEm.length ? 'green' : '')}>{hojeEm.length ? 'Hoje: ' + hojeEm.join(', ') : 'Sem obra hoje'}</span>}
                 {m && <span className={'badge ' + m.cls}>{m.txt}</span>}
                 <div className="sub" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 10px' }}>
                   {semana.map((d) => {
                     const o = obrasNoDia(v.id, d);
-                    return <span key={d}><b style={{ textTransform: 'capitalize' }}>{diaSemana(d)}</b> {o.length ? o.join(', ') : '—'}</span>;
+                    const f = foraNoDia(v.id, d);
+                    return <span key={d}><b style={{ textTransform: 'capitalize' }}>{diaSemana(d)}</b> {f ? <i>{motivoVeiculoNome(f)}</i> : o.length ? o.join(', ') : '—'}</span>;
                   })}
                 </div>
                 {v.observacoes && <p className="sub" style={{ whiteSpace: 'pre-line' }}>{v.observacoes}</p>}
@@ -116,6 +120,8 @@ export function Frotas({ dados }) {
           })}
         </div>
       </section>
+
+      {ativos.length > 0 && <ForaDeObra dados={dados} ativos={ativos} />}
 
       {inativos.length > 0 && (
         <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -130,5 +136,88 @@ export function Frotas({ dados }) {
         </section>
       )}
     </>
+  );
+}
+
+// Veículo fora de obra por período (manutenção ou outro motivo) — aparece na agenda, na faixa “Fora da obra”
+function ForaDeObra({ dados, ativos }) {
+  const dia = hoje();
+  const [veic, setVeic] = useState('');
+  const [motivo, setMotivo] = useState('manutencao');
+  const [obs, setObs] = useState('');
+  const [de, setDe] = useState(dia);
+  const [ate, setAte] = useState(dia);
+  const [salvando, setSalvando] = useState(false);
+  if (dados.faltando?.has('veiculo_fora')) {
+    return (
+      <section className="card"><p className="note">Para tirar veículos de obra (manutenção e outros motivos), rode no Supabase o arquivo <b>20_recebimentos_falta_frota_ancoragem.sql</b>.</p></section>
+    );
+  }
+  const nome = Object.fromEntries(dados.veiculos.map((v) => [v.id, v.nome]));
+  const marcar = async (e) => {
+    e.preventDefault();
+    if (!veic || !de || !ate || ate < de || (motivo === 'outro' && !obs.trim())) return;
+    const dias = [];
+    for (let c = de; c <= ate && dias.length < 120; c = addDias(c, 1)) dias.push(c);
+    setSalvando(true);
+    const ok = await dados.marcarVeiculoForaPeriodo(veic, dias, motivo, motivo === 'outro' ? obs.trim() : null);
+    setSalvando(false);
+    if (ok !== false) setObs('');
+  };
+  // dias seguidos do mesmo veículo e motivo viram um período
+  const periodos = [];
+  [...(dados.veiculo_fora || [])]
+    .filter((f) => f.dia >= dia)
+    .sort((a, b) => (a.veiculo_id + a.dia).localeCompare(b.veiculo_id + b.dia))
+    .forEach((f) => {
+      const p = periodos[periodos.length - 1];
+      if (p && p.veic === f.veiculo_id && p.motivo === f.motivo && (p.obs || '') === (f.observacao || '') && addDias(p.ate, 1) === f.dia) { p.ate = f.dia; p.ids.push(f.id); }
+      else periodos.push({ veic: f.veiculo_id, motivo: f.motivo, obs: f.observacao, de: f.dia, ate: f.dia, ids: [f.id] });
+    });
+  periodos.sort((a, b) => a.de.localeCompare(b.de));
+  return (
+    <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 800 }}>Fora de obra</h2>
+      <p className="note" style={{ marginTop: -8 }}>Manutenção ou outro motivo. Também dá para arrastar o veículo na agenda, na faixa “Fora da obra”.</p>
+      <form className="add-form" onSubmit={marcar}>
+        <label className="field"><span>Veículo</span>
+          <select value={veic} onChange={(e) => setVeic(e.target.value)} required>
+            <option value="">Escolha…</option>
+            {ativos.map((v) => <option key={v.id} value={v.id}>{v.nome}{v.placa ? ' · ' + v.placa : ''}</option>)}
+          </select>
+        </label>
+        <label className="field" style={{ flex: '0 1 170px' }}><span>Motivo</span>
+          <select value={motivo} onChange={(e) => setMotivo(e.target.value)}>
+            {MOTIVOS_VEICULO.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+          </select>
+        </label>
+        {motivo === 'outro' && (
+          <label className="field" style={{ flex: '1 1 200px' }}><span>Qual?</span>
+            <input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Ex.: emprestado para a fábrica" required />
+          </label>
+        )}
+        <label className="field" style={{ flex: '0 1 160px' }}><span>De</span>
+          <input type="date" value={de} onChange={(e) => { setDe(e.target.value); if (e.target.value > ate) setAte(e.target.value); }} required />
+        </label>
+        <label className="field" style={{ flex: '0 1 160px' }}><span>Até</span>
+          <input type="date" value={ate} min={de} onChange={(e) => setAte(e.target.value)} required />
+        </label>
+        <button type="submit" className="pill lime" style={{ minHeight: 44 }} disabled={!veic || salvando || (motivo === 'outro' && !obs.trim())}>{salvando ? 'Salvando…' : 'Marcar'}</button>
+      </form>
+      {periodos.length ? (
+        <div className="people">
+          {periodos.map((p) => (
+            <div key={p.ids[0]} className="person">
+              <div className={'avatar ' + (p.motivo === 'outro' ? 'aus-ferias' : 'aus-folga')} aria-hidden="true">{(nome[p.veic] || '?').slice(0, 2).toUpperCase()}</div>
+              <div className="info">
+                <span className="nm">{nome[p.veic] || '?'}</span>
+                <span className="sub">{p.motivo === 'outro' ? p.obs || 'Outro motivo' : 'Manutenção'} · {p.de === p.ate ? fmt(p.de) : fmt(p.de) + ' a ' + fmt(p.ate)}</span>
+              </div>
+              <button type="button" className="mini" onClick={() => p.ids.forEach((id) => dados.removerVeiculoFora(id))}>Cancelar</button>
+            </div>
+          ))}
+        </div>
+      ) : <p className="empty" style={{ padding: 0 }}>Nenhum veículo fora de obra daqui pra frente.</p>}
+    </section>
   );
 }

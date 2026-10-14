@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   EMPRESAS, FOTOS_MAX, TIPOS_RELATORIO, dataLonga, empresaPorId, hoje, mensagemDoDia,
   saudacao, supabase, tipoRelatorio,
-  ETAPA_MAX, recomendadas,
+  ETAPA_MAX, recomendadas, etapasAncoragem, etapasDoRelatorio, basesDaEstrutura, ESTAIOS_PADRAO, BASES_SKID_PADRAO, PASSOS_ANCORAGEM,
 } from './lib.js';
 import {
   concluirRascunho, configurarEnvio, descartarRascunho, guardarArquivo, importarDoBanco, lerArquivos, lerRascunho,
@@ -14,6 +14,7 @@ import { VIDEO_MAX_SEG, carimbar, comprimirFoto, conferirVideo, coordTexto, lerE
 import { CameraContinua, GravadorVideo } from './Camera.jsx';
 import { useVoltarFecha } from './rota.js';
 import { CAMPOS_RFI, camposIniciais, gerarRfiXlsx } from './rfiExcel.js';
+import { ExportarPdf } from './ExportarPdf.jsx';
 
 // App do pessoal de campo: uma tela só — saudação, obra do dia e "Novo relatório".
 export function AppCampo({ dados, eu, avisar, previa = false }) {
@@ -145,7 +146,7 @@ export function AppCampo({ dados, eu, avisar, previa = false }) {
             })}
           </>
         ) : fora ? (
-          <><span className="campo-rot">Hoje</span><strong className="campo-livre">Você está de {fora.tipo === 'ferias' ? 'férias' : 'folga'}. Descanse!</strong></>
+          <><span className="campo-rot">Hoje</span><strong className="campo-livre">{fora.tipo === 'falta' ? 'Hoje você não está escalado para nenhuma obra.' : `Você está de ${fora.tipo === 'ferias' ? 'férias' : 'folga'}. Descanse!`}</strong></>
         ) : (
           <><span className="campo-rot">Hoje</span><strong className="campo-livre">Você ainda não está na agenda de nenhuma obra.</strong>
             <span className="note">Se estiver em obra, mande o relatório escolhendo a obra na lista.</span></>
@@ -174,7 +175,7 @@ export function AppCampo({ dados, eu, avisar, previa = false }) {
 
       <section className="campo-hoje" aria-label="Relatórios de hoje">
         <h2>Seus relatórios de hoje</h2>
-        {TIPOS_RELATORIO.filter((t) => t.ativo).map((t) => {
+        {TIPOS_RELATORIO.filter((t) => t.diario).map((t) => {
           const feitos = relatoriosHoje.filter((r) => r.tipo === t.id && r.status !== 'rascunho');
           const emAndamento = !feitos.length && (relatoriosHoje.some((r) => r.tipo === t.id) || andamento.some((r) => r.tipo === t.id && r.dia === dia));
           return (
@@ -189,9 +190,11 @@ export function AppCampo({ dados, eu, avisar, previa = false }) {
             </div>
           );
         })}
-        {relatoriosHoje.filter((r) => !tipoRelatorio[r.tipo]?.ativo).map((r) => (
-          <div key={r.id} className="campo-check feito"><span className="campo-check-ic">✓</span>
-            <span className="campo-check-nome">{tipoRelatorio[r.tipo]?.nome}</span><span>{hora(r.criado_em)}</span></div>
+        {/* RFI, ancoragem…: não são diários; aparecem quando existem */}
+        {relatoriosHoje.filter((r) => !tipoRelatorio[r.tipo]?.diario).map((r) => (
+          <div key={r.id} className={'campo-check' + (r.status === 'rascunho' ? '' : ' feito')}><span className="campo-check-ic">{r.status === 'rascunho' ? '' : '✓'}</span>
+            <span className="campo-check-nome">{tipoRelatorio[r.tipo]?.nome}</span>
+            {r.status === 'rascunho' ? <span className="campo-check-pend andamento">em andamento</span> : <span>{hora(r.criado_em)}</span>}</div>
         ))}
       </section>
 
@@ -254,6 +257,8 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
   const [processando, setProcessando] = useState(0);
   const [erro, setErro] = useState('');
   const [confirmarApagar, setConfirmarApagar] = useState(false);
+  const [estrutura, setEstrutura] = useState(null); // ancoragem: mastros e skids
+  const [baseAberta, setBaseAberta] = useState(null); // ancoragem: base que está aberta na tela
   const [etapaFoto, setEtapaFotoState] = useState(null); // relatório por etapas: etapa que está recebendo fotos agora
   const etapaRef = useRef(null); // o seletor da galeria abre na hora do toque (iPhone exige), então guarda a etapa aqui também
   const setEtapaFoto = (eid) => { etapaRef.current = eid; setEtapaFotoState(eid); };
@@ -274,7 +279,7 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
     (async () => {
       const r = await lerRascunho(rascunhoId);
       if (r) {
-        setTipo(r.tipo); setDemandaId(r.demanda_id); setDia(r.dia); setFuncId(r.funcionario_id || ''); setObs(r.observacao || '');
+        setTipo(r.tipo); setDemandaId(r.demanda_id); setDia(r.dia); setFuncId(r.funcionario_id || ''); setObs(r.observacao || ''); setEstrutura(r.estrutura || null);
         const lista = await lerArquivos(rascunhoId);
         setItens(lista.map((a) => ({
           id: a.id, tipo: a.tipo, enviado: !!a.enviado, quando: a.quando || a.remoto?.quando, duracao: a.duracao || a.remoto?.duracao, etapa: a.etapa || a.remoto?.etapa || null,
@@ -322,8 +327,17 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
   const obra = dados.demandas.find((d) => d.id === demandaId);
   const quem = dados.funcionarios.find((f) => f.id === funcId)?.nome;
   const travado = itens.length > 0; // depois da primeira foto, obra e dia não mudam (já estão carimbados)
-  const etapas = tipoRelatorio[tipo]?.etapas || null; // RFI e outros relatórios por etapas
+  const estruturado = !!tipoRelatorio[tipo]?.estruturado; // ancoragem: etapas por base (mastros e skids)
+  const chaveEstrutura = JSON.stringify(estrutura || []);
+  const etapas = useMemo(() => (estruturado ? etapasAncoragem(estrutura) : tipoRelatorio[tipo]?.etapas || null), [estruturado, tipo, chaveEstrutura]); // eslint-disable-line react-hooks/exhaustive-deps
   const etapaInfo = (eid) => { const i = (etapas || []).findIndex((e) => e.id === eid); return i < 0 ? null : { ...etapas[i], n: i + 1 }; };
+  // texto da etapa no carimbo e na câmera: "M1T E1 · Limpeza dos furos" (ancoragem) ou "3/26 · QTM fechado" (RFI)
+  const rotuloEtapa = (eid, longo = false) => {
+    const e = etapaInfo(eid);
+    if (!e) return null;
+    if (e.sigla) return `${e.sigla} · ${e.nome}`;
+    return longo ? `Etapa ${e.n}/${etapas.length}: ${e.nome}` : `${e.n}/${etapas.length} · ${e.nome}`;
+  };
 
   const linhasCarimbo = (meta) => {
     const q = meta.quando ? new Date(meta.quando) : null;
@@ -333,7 +347,7 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
     return [
       quandoTxt,
       [obra?.nome, quem || (escritorio ? 'lançado pelo escritório' : null), tipoRelatorio[tipo]?.nome].filter(Boolean).join(' · '),
-      meta.etapa && etapaInfo(meta.etapa) ? `Etapa ${etapaInfo(meta.etapa).n}/${etapas.length}: ${etapaInfo(meta.etapa).nome}` : null,
+      meta.etapa ? rotuloEtapa(meta.etapa, true) : null,
       meta.lat != null ? `Local: ${coordTexto(meta.lat, meta.lon, meta.prec)}` : null,
     ].filter(Boolean);
   };
@@ -342,7 +356,7 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
     if (criadoRef.current) return;
     criadoRef.current = true;
     await salvarRascunho({
-      id, demanda_id: demandaId, tipo, dia, funcionario_id: funcId || null, observacao: obs,
+      id, demanda_id: demandaId, tipo, dia, funcionario_id: funcId || null, observacao: obs, ...(estruturado ? { estrutura: estrutura || [] } : {}),
       criadoEm: Date.now(), escritorio, remoto: false, concluir: false,
     });
   };
@@ -425,13 +439,21 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
   // observação e "quem" vão sendo salvos também
   useEffect(() => {
     if (!criadoRef.current) return undefined;
-    const t = setTimeout(async () => { const r = await lerRascunho(id); if (r) await salvarRascunho({ ...r, observacao: obs, funcionario_id: funcId || null }); }, 500);
+    const t = setTimeout(async () => {
+      const r = await lerRascunho(id);
+      if (!r) return;
+      const mudouEstrutura = estruturado && JSON.stringify(r.estrutura || []) !== chaveEstrutura;
+      await salvarRascunho({ ...r, observacao: obs, funcionario_id: funcId || null, ...(estruturado ? { estrutura: estrutura || [] } : {}), ...(mudouEstrutura ? { sincronizarLista: true } : {}) });
+    }, 500);
     return () => clearTimeout(t);
-  }, [obs, funcId, id]);
+  }, [obs, funcId, id, chaveEstrutura]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fotosDaEtapa = (eid) => itens.filter((i) => i.tipo !== 'video' && i.etapa === eid);
   const etapasSemFoto = etapas ? etapas.filter((e) => !fotosDaEtapa(e.id).length) : [];
-  const podeConcluir = itens.length > 0 && !etapasSemFoto.length;
+  const semEstrutura = estruturado && !(estrutura || []).length;
+  const podeConcluir = itens.length > 0 && !etapasSemFoto.length && !semEstrutura;
+  const fotosNaBase = (bid) => itens.filter((i) => i.etapa && i.etapa.startsWith(bid + ':')).length;
+  const bases = estruturado ? basesDaEstrutura(estrutura) : [];
   const concluir = async () => {
     if (!podeConcluir || processando) return;
     await concluirRascunho(id, { observacao: obs, funcionario_id: funcId || null });
@@ -439,6 +461,40 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
     setEtapa('ok');
   };
   const apagar = async () => { await descartarRascunho(id); onFechar(); };
+
+  // uma etapa (RFI ou ancoragem): fotos tiradas + botões de câmera e galeria
+  const secaoEtapa = (e, n) => {
+    const fs = fotosDaEtapa(e.id);
+    const completa = fs.length >= e.rec;
+    return (
+      <section key={e.id} className={'rfi-etapa' + (fs.length ? (completa ? ' ok' : ' parcial') : '')} aria-label={`Etapa ${n}: ${e.nome}${e.sigla ? ' · ' + e.sigla : ''}`}>
+        <div className="rfi-cab">
+          <span className="rfi-n" aria-hidden="true">{completa ? '✓' : n}</span>
+          <div className="rfi-tit"><b>{e.nome}</b>
+            <small>Recomendado: {e.rec} {e.rec === 1 ? 'foto' : 'fotos'} · {fs.length} {fs.length === 1 ? 'tirada' : 'tiradas'}{fs.length >= ETAPA_MAX ? ' · máximo' : ''}</small></div>
+        </div>
+        {(fs.length > 0 || (processando > 0 && etapaFoto === e.id)) && (
+          <div className="campo-grade rfi-grade">
+            {fs.map((it, i) => (
+              <div key={it.id} className="campo-mini">
+                <img src={it.preview} alt={`Foto ${i + 1}`} />
+                {it.quando && <span className="campo-mini-hora">{hora(it.quando)}</span>}
+                <span className={'campo-mini-nuvem' + (it.enviado ? ' ok' : '')} title={it.enviado ? 'Salva no sistema' : 'Salva no celular, subindo…'}>{it.enviado ? '✓' : '↑'}</span>
+                <button type="button" aria-label={`Tirar foto ${i + 1}`} onClick={() => tirar(it)}>×</button>
+              </div>
+            ))}
+            {etapaFoto === e.id && Array.from({ length: processando }, (_, i) => <div key={'p' + i} className="campo-mini carregando" aria-label="preparando foto" />)}
+          </div>
+        )}
+        <div className="rfi-botoes">
+          <button type="button" className="campo-add fino" disabled={!demandaId || vagas(e.id) <= 0} onClick={() => { setEtapaFoto(e.id); setCamAberta(true); }}>
+            <b>Tirar foto</b><span>{demandaId ? (vagas(e.id) <= 0 ? 'máximo atingido' : 'câmera do app') : 'escolha a obra'}</span></button>
+          <button type="button" className="campo-add fino" disabled={!demandaId || vagas(e.id) <= 0} onClick={() => { setEtapaFoto(e.id); galRef.current?.click(); }}>
+            <b>Galeria</b><span>escolher</span></button>
+        </div>
+      </section>
+    );
+  };
 
   const fotos = itens.filter((i) => i.tipo !== 'video');
   const videos = itens.filter((i) => i.tipo === 'video');
@@ -503,7 +559,7 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
             </div>
           )}
 
-          {etapas ? (
+          {etapas ? (etapas.length > 0 &&
             <div className="rfi-resumo">
               <div><b>{etapas.length - etapasSemFoto.length} de {etapas.length} etapas com foto</b>
                 <span>{fotos.length} {fotos.length === 1 ? 'foto' : 'fotos'} · recomendado {recomendadas(etapas)} · até {ETAPA_MAX} por etapa</span></div>
@@ -538,37 +594,26 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
             </div>
           )}
 
-          {etapas && (
-            <div className="rfi-etapas">
-              {etapas.map((e, n) => {
-                const fs = fotosDaEtapa(e.id);
-                const completa = fs.length >= e.rec;
+          {etapas && estruturado && (
+            <EditorEstrutura estrutura={estrutura || []} setEstrutura={setEstrutura} fotosNaBase={fotosNaBase} travadoObra={!demandaId} />
+          )}
+          {etapas && !estruturado && (
+            <div className="rfi-etapas">{etapas.map((e, n) => secaoEtapa(e, n + 1))}</div>
+          )}
+          {etapas && estruturado && bases.length > 0 && (
+            <div className="anc-bases">
+              {bases.map((b) => {
+                const es = etapas.filter((e) => e.base === b.id);
+                const feitas = es.filter((e) => fotosDaEtapa(e.id).length).length;
+                const aberta = baseAberta === b.id;
                 return (
-                  <section key={e.id} className={'rfi-etapa' + (fs.length ? (completa ? ' ok' : ' parcial') : '')} aria-label={`Etapa ${n + 1}: ${e.nome}`}>
-                    <div className="rfi-cab">
-                      <span className="rfi-n" aria-hidden="true">{completa ? '✓' : n + 1}</span>
-                      <div className="rfi-tit"><b>{e.nome}</b>
-                        <small>Recomendado: {e.rec} {e.rec === 1 ? 'foto' : 'fotos'} · {fs.length} {fs.length === 1 ? 'tirada' : 'tiradas'}{fs.length >= ETAPA_MAX ? ' · máximo' : ''}</small></div>
-                    </div>
-                    {(fs.length > 0 || (processando > 0 && etapaFoto === e.id)) && (
-                      <div className="campo-grade rfi-grade">
-                        {fs.map((it, i) => (
-                <div key={it.id} className="campo-mini">
-                  <img src={it.preview} alt={`Foto ${i + 1}`} />
-                  {it.quando && <span className="campo-mini-hora">{hora(it.quando)}</span>}
-                  <span className={'campo-mini-nuvem' + (it.enviado ? ' ok' : '')} title={it.enviado ? 'Salva no sistema' : 'Salva no celular, subindo…'}>{it.enviado ? '✓' : '↑'}</span>
-                  <button type="button" aria-label={`Tirar foto ${i + 1}`} onClick={() => tirar(it)}>×</button>
-                </div>
-              ))}
-                        {etapaFoto === e.id && Array.from({ length: processando }, (_, i) => <div key={'p' + i} className="campo-mini carregando" aria-label="preparando foto" />)}
-                      </div>
-                    )}
-                    <div className="rfi-botoes">
-                      <button type="button" className="campo-add fino" disabled={!demandaId || vagas(e.id) <= 0} onClick={() => { setEtapaFoto(e.id); setCamAberta(true); }}>
-                        <b>Tirar foto</b><span>{demandaId ? (vagas(e.id) <= 0 ? 'máximo atingido' : 'câmera do app') : 'escolha a obra'}</span></button>
-                      <button type="button" className="campo-add fino" disabled={!demandaId || vagas(e.id) <= 0} onClick={() => { setEtapaFoto(e.id); galRef.current?.click(); }}>
-                        <b>Galeria</b><span>escolher</span></button>
-                    </div>
+                  <section key={b.id} className={'anc-base' + (feitas === es.length ? ' ok' : feitas ? ' parcial' : '') + (aberta ? ' aberta' : '')}>
+                    <button type="button" className="anc-base-cab" aria-expanded={aberta} onClick={() => setBaseAberta(aberta ? null : b.id)}>
+                      <span className="anc-sigla">{b.sigla}</span>
+                      <span className="anc-base-tit"><b>{b.nome}</b><small>{feitas} de {es.length} etapas · {fotosNaBase(b.id)} {fotosNaBase(b.id) === 1 ? 'foto' : 'fotos'}</small></span>
+                      <span className="anc-seta" aria-hidden="true">{aberta ? '▲' : '▼'}</span>
+                    </button>
+                    {aberta && <div className="rfi-etapas">{es.map((e, n) => secaoEtapa(e, n + 1))}</div>}
                   </section>
                 );
               })}
@@ -620,7 +665,7 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
               <span className="note">{naoSubiram ? `${itens.length - naoSubiram} de ${itens.length} já no sistema · ${envio.online ? 'subindo o resto…' : 'sem sinal: sobe quando voltar'}` : 'Tudo salvo no sistema ✓'}</span>
             )}
             <button type="button" className="campo-novo" disabled={!podeConcluir || !!processando} onClick={concluir}>
-              {processando ? 'Preparando foto…' : !demandaId ? 'Escolha a obra' : !itens.length ? 'Tire pelo menos 1 foto'
+              {processando ? 'Preparando foto…' : !demandaId ? 'Escolha a obra' : semEstrutura ? 'Adicione um mastro ou skid' : !itens.length ? 'Tire pelo menos 1 foto'
                 : etapasSemFoto.length ? `Falta foto em ${etapasSemFoto.length} ${etapasSemFoto.length === 1 ? 'etapa' : 'etapas'}` : 'Concluir relatório'}
             </button>
             {travado && (confirmarApagar ? (
@@ -638,7 +683,7 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
       )}
       {camAberta && (
         <CameraContinua previas={(etapas ? fotosDaEtapa(etapaFoto) : fotos).map((f) => ({ key: f.id, preview: f.preview }))} max={etapas ? ETAPA_MAX : FOTOS_MAX}
-          titulo={etapas && etapaInfo(etapaFoto) ? `${etapaInfo(etapaFoto).n}/${etapas.length} · ${etapaInfo(etapaFoto).nome}` : null}
+          titulo={etapas ? rotuloEtapa(etapaFoto) : null}
           recomendado={etapas && etapaInfo(etapaFoto) ? etapaInfo(etapaFoto).rec : null} onFoto={fotoDaCamera} onFechar={() => setCamAberta(false)}
           onUsarNativa={() => { setCamAberta(false); camRef.current?.click(); }} />
       )}
@@ -656,6 +701,66 @@ export function NovoRelatorio({ dados, func, minhasObras = [], onFechar, escrito
       )}
     </div>,
     document.body,
+  );
+}
+
+// Ancoragem: monta os mastros (base + estaios) e skids (bases) do relatório.
+// Não deixa tirar uma base que já tem foto.
+function EditorEstrutura({ estrutura, setEstrutura, fotosNaBase }) {
+  const [aviso, setAviso] = useState('');
+  const ordenada = [...estrutura].sort((a, b) => (a.tipo === b.tipo ? a.n - b.n : a.tipo === 'mastro' ? -1 : 1));
+  const prox = (tipo) => Math.max(0, ...estrutura.filter((i) => i.tipo === tipo).map((i) => i.n)) + 1;
+  const adicionar = (tipo) => {
+    const n = prox(tipo);
+    setAviso('');
+    setEstrutura([...estrutura, tipo === 'mastro'
+      ? { id: 'm' + n, tipo, n, estaios: ESTAIOS_PADRAO }
+      : { id: 's' + n, tipo, n, bases: BASES_SKID_PADRAO }]);
+  };
+  const fotosDoItem = (it) => basesDaEstrutura([it]).reduce((t, b) => t + fotosNaBase(b.id), 0);
+  const mudar = (it, delta) => {
+    const campo = it.tipo === 'mastro' ? 'estaios' : 'bases';
+    const atual = it[campo] ?? (it.tipo === 'mastro' ? ESTAIOS_PADRAO : BASES_SKID_PADRAO);
+    const novo = Math.max(it.tipo === 'mastro' ? 0 : 1, Math.min(it.tipo === 'mastro' ? 8 : 12, atual + delta));
+    if (novo === atual) return;
+    if (novo < atual) {
+      const sai = it.tipo === 'mastro' ? `m${it.n}e${atual}` : `s${it.n}b${atual}`;
+      if (fotosNaBase(sai)) { setAviso(`${it.tipo === 'mastro' ? 'O estaio' : 'A base'} ${atual} já tem foto. Tire as fotos dele${it.tipo === 'mastro' ? '' : 'a'} antes.`); return; }
+    }
+    setAviso('');
+    setEstrutura(estrutura.map((x) => (x.id === it.id ? { ...x, [campo]: novo } : x)));
+  };
+  const tirar = (it) => {
+    if (fotosDoItem(it)) { setAviso(`${it.tipo === 'mastro' ? 'O mastro' : 'O skid'} ${it.n} já tem fotos. Tire as fotos antes.`); return; }
+    setAviso('');
+    setEstrutura(estrutura.filter((x) => x.id !== it.id));
+  };
+  return (
+    <div className="anc-editor" role="group" aria-label="Mastros e skids">
+      <div className="anc-editor-tit"><b>Mastros e skids</b>
+        <span className="note">{estrutura.length ? 'Cada base tem as 11 etapas de fotos.' : 'Adicione o que tem nesta obra. Cada base tem as 11 etapas de fotos.'}</span></div>
+      {ordenada.map((it) => {
+        const qtd = it.tipo === 'mastro' ? it.estaios ?? ESTAIOS_PADRAO : it.bases ?? BASES_SKID_PADRAO;
+        return (
+          <div key={it.id} className="anc-item">
+            <span className="anc-item-nome">{it.tipo === 'mastro' ? `Mastro ${it.n}` : `Skid ${it.n}`}
+              <small>{it.tipo === 'mastro' ? `base do mastro + ${qtd} ${qtd === 1 ? 'estaio' : 'estaios'}` : `${qtd} ${qtd === 1 ? 'base' : 'bases'}`}</small></span>
+            <span className="anc-passo" role="group" aria-label={it.tipo === 'mastro' ? 'Estaios' : 'Bases'}>
+              <button type="button" aria-label="Menos" onClick={() => mudar(it, -1)}>−</button>
+              <b>{qtd}</b>
+              <button type="button" aria-label="Mais" onClick={() => mudar(it, 1)}>+</button>
+              <small>{it.tipo === 'mastro' ? 'estaios' : 'bases'}</small>
+            </span>
+            <button type="button" className="link-btn" onClick={() => tirar(it)}>Tirar</button>
+          </div>
+        );
+      })}
+      {aviso && <div className="err" role="alert">{aviso}</div>}
+      <div className="anc-add">
+        <button type="button" className="campo-add fino" onClick={() => adicionar('mastro')}><b>+ Mastro</b><span>base + {ESTAIOS_PADRAO} estaios</span></button>
+        <button type="button" className="campo-add fino" onClick={() => adicionar('skid')}><b>+ Skid</b><span>{BASES_SKID_PADRAO} bases</span></button>
+      </div>
+    </div>
   );
 }
 
@@ -692,12 +797,13 @@ export function VerRelatorio({ r, dados, onFechar, onApagar, exportarRfi = false
   const obra = dados.demandas.find((d) => d.id === r.demanda_id);
   const quem = dados.funcionarios.find((f) => f.id === r.funcionario_id)?.nome || dados.perfis.find((p) => p.id === r.autor_id)?.nome;
   // relatório por etapas (RFI): fotos na ordem das etapas
-  const etapasTipo = tipoRelatorio[r.tipo]?.etapas || null;
+  const etapasTipo = useMemo(() => etapasDoRelatorio(r), [r]);
+  const [pdfAberto, setPdfAberto] = useState(false);
   const posEtapa = (eid) => { const i = (etapasTipo || []).findIndex((e) => e.id === eid); return i < 0 ? 999 : i; };
   const brutas = (r.arquivos || []).filter((a) => a.tipo !== 'video');
   const fotos = etapasTipo ? [...brutas].sort((a, b) => posEtapa(a.etapa) - posEtapa(b.etapa) || (a.ordem || 0) - (b.ordem || 0)) : brutas;
   const videos = (r.arquivos || []).filter((a) => a.tipo === 'video');
-  const nomeEtapa = (eid) => etapasTipo?.find((e) => e.id === eid)?.nome || null;
+  const nomeEtapa = (eid) => { const e = etapasTipo?.find((x) => x.id === eid); return e ? (e.sigla ? `${e.sigla} ${e.nome}` : e.nome) : null; };
   const base = [limpar(obra?.nome || 'obra'), r.dia, limpar(tipoRelatorio[r.tipo]?.nome || r.tipo)].join('_');
   const nomeDe = (a, i) => a.tipo === 'video'
     ? `${base}_video.${(a.caminho.split('.').pop() || 'mp4')}`
@@ -755,6 +861,9 @@ export function VerRelatorio({ r, dados, onFechar, onApagar, exportarRfi = false
                 {baixando || `Baixar ${(r.arquivos || []).length > 1 ? `todas (${(r.arquivos || []).length})` : ''}`}
               </button>
             )}
+            {exportarRfi && fotos.length > 0 && (
+              <button type="button" className="pill" onClick={() => setPdfAberto(true)}>Exportar PDF</button>
+            )}
             {exportarRfi && r.tipo === 'rfi' && fotos.length > 0 && (
               <button type="button" className="pill" onClick={() => setRfiAberto(true)}>RFI no modelo (Excel)</button>
             )}
@@ -766,11 +875,16 @@ export function VerRelatorio({ r, dados, onFechar, onApagar, exportarRfi = false
           <>
             {etapasTipo.map((e, n) => {
               const fs = fotos.filter((a) => a.etapa === e.id);
+              const novaBase = e.base && (n === 0 || etapasTipo[n - 1].base !== e.base);
+              const num = e.base ? etapasTipo.slice(0, n + 1).filter((x) => x.base === e.base).length : n + 1;
               return (
-                <div key={e.id} className={'rel-etapa' + (fs.length ? '' : ' vazia')}>
-                  <h3>{n + 1}. {e.nome}<small>{fs.length ? `${fs.length} de ${e.rec}` : 'sem foto'}</small></h3>
-                  {fs.length > 0 && <div className="rel-grade">{fs.map(miniFoto)}</div>}
-                </div>
+                <Fragment key={e.id}>
+                  {novaBase && <h3 className="rel-base"><span className="anc-sigla">{e.sigla}</span>{e.baseNome}</h3>}
+                  <div className={'rel-etapa' + (fs.length ? '' : ' vazia')}>
+                    <h3>{num}. {e.nome}<small>{fs.length ? `${fs.length} de ${e.rec}` : 'sem foto'}</small></h3>
+                    {fs.length > 0 && <div className="rel-grade">{fs.map(miniFoto)}</div>}
+                  </div>
+                </Fragment>
               );
             })}
             {fotos.some((a) => posEtapa(a.etapa) === 999) && (
@@ -806,6 +920,7 @@ export function VerRelatorio({ r, dados, onFechar, onApagar, exportarRfi = false
           </div>
         )}
       </div>
+      {pdfAberto && <ExportarPdf r={r} obra={obra} dados={dados} salvarCampos={salvarCampos} entregar={entregar} onFechar={() => setPdfAberto(false)} />}
       {rfiAberto && <ExportarRfi r={r} obra={obra} dados={dados} etapas={etapasTipo} salvarCampos={salvarCampos} onFechar={() => setRfiAberto(false)} />}
       {foco != null && fotos[foco] && (
         <div className="rel-luz" onClick={(e) => e.target === e.currentTarget && setFoco(null)}>

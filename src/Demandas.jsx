@@ -148,7 +148,8 @@ export function Demandas({ dados, tv, setTv, avisar, pode, custos, modo = 'geral
         <DemandaModal inicial={editando} grupos={grupos} clientes={listaClientes(dados)} criarCliente={pode.gestao && !dados.faltando.has('clientes') ? dados.criarCliente : null} onFechar={() => setEditando(null)}
           onSalvar={dados.salvarDemanda} onExcluir={dados.excluirDemanda}
           limitado={!pode.gestao} perfis={dados.perfis}
-          financeiro={pode.admin && custos ? { dados, porDemanda: custos } : null} />
+          financeiro={pode.admin && custos ? { dados, porDemanda: custos } : null}
+          admin={pode.admin} gerente={pode.papel === 'gerente'} dados={dados} />
       )}
     </>
   );
@@ -214,12 +215,12 @@ export function CartaoFabrica({ d, dia, onAbrir, res, comProduto = false }) {
 }
 
 export function LinhaResultado({ r }) {
-  if (r.vendido == null) {
+  if (r.total == null) {
     return <span className="item-cost">Custos <b>{brl(r.custos)}</b> · falta o valor vendido</span>;
   }
   return (
     <span className="item-cost">
-      Vendido <b>{brl(r.vendido)}</b> · custos {brl(r.custos + r.imposto)} ·{' '}
+      {r.adicionais ? 'Total' : 'Vendido'} <b>{brl(r.total)}</b> · custos {brl(r.custos + r.imposto)} ·{' '}
       <b className={r.resultado >= 0 ? 'pos' : 'bad'}>{r.resultado >= 0 ? 'sobra' : 'prejuízo'} {brl(Math.abs(r.resultado))}</b>
     </span>
   );

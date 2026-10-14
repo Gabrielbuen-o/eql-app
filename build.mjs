@@ -14,7 +14,7 @@ cpSync('public', 'dist', { recursive: true });
 const options = {
   entryPoints: ['src/main.jsx'],
   bundle: true,
-  minify: !watch,
+  minify: !watch && !process.env.EQL_SEM_MINIFY,
   sourcemap: watch,
   outfile: 'dist/app.js',
   jsx: 'automatic',

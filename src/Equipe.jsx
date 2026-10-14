@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { addDias, fmt, hoje, iniciais } from './lib.js';
+import { addDias, fmt, hoje, iniciais, TIPOS_AUSENCIA, ausenciaNome } from './lib.js';
 import { brl, brlCentavos, custoAtual } from './custos.js';
 
 export function Equipe({ dados, pode = {} }) {
@@ -84,7 +84,7 @@ export function Equipe({ dados, pode = {} }) {
                   {admin && <span className="sub" style={{ fontWeight: 700, color: custoHoje(f.id) ? 'var(--brand-text)' : 'var(--late-ink)' }}>
                     {custoHoje(f.id) ? `${brlCentavos(custoHoje(f.id).custo_diario)} por dia` : 'Custo não cadastrado'}
                   </span>}
-                  <span className="sub">{[f.funcao, ausHoje(f.id) ? (ausHoje(f.id).tipo === 'ferias' ? 'De férias hoje' : 'De folga hoje') : onde.length ? 'Hoje: ' + onde.join(', ') : 'Livre hoje'].filter(Boolean).join(' · ')}</span>
+                  <span className="sub">{[f.funcao, ausHoje(f.id) ? ({ ferias: 'De férias hoje', falta: 'Falta hoje' }[ausHoje(f.id).tipo] || 'De folga hoje') : onde.length ? 'Hoje: ' + onde.join(', ') : 'Livre hoje'].filter(Boolean).join(' · ')}</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <button type="button" className="mini" onClick={() => abrirEdicao(f)}>{admin ? 'Editar / custo' : 'Editar'}</button>
@@ -121,7 +121,7 @@ export function Equipe({ dados, pode = {} }) {
   );
 }
 
-// Marcar folga/férias por período e ver as próximas
+// Marcar folga, férias ou falta por período e ver as próximas (faltas: também as dos últimos 30 dias)
 function Ausencias({ dados, ativos }) {
   const dia = hoje();
   const [func, setFunc] = useState('');
@@ -144,7 +144,7 @@ function Ausencias({ dados, ativos }) {
   // agrupa dias seguidos do mesmo funcionário e tipo em períodos
   const periodos = [];
   [...dados.ausencias]
-    .filter((a) => a.dia >= dia)
+    .filter((a) => a.dia >= dia || (a.tipo === 'falta' && a.dia >= addDias(dia, -30)))
     .sort((a, b) => (a.funcionario_id + a.dia).localeCompare(b.funcionario_id + b.dia))
     .forEach((a) => {
       const p = periodos[periodos.length - 1];
@@ -155,7 +155,7 @@ function Ausencias({ dados, ativos }) {
 
   return (
     <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <h2 style={{ fontSize: 16, fontWeight: 800 }}>Folgas e férias</h2>
+      <h2 style={{ fontSize: 16, fontWeight: 800 }}>Folgas, férias e faltas</h2>
       <form className="add-form" onSubmit={marcar}>
         <label className="field"><span>Funcionário</span>
           <select value={func} onChange={(e) => setFunc(e.target.value)} required>
@@ -165,8 +165,7 @@ function Ausencias({ dados, ativos }) {
         </label>
         <label className="field" style={{ flex: '0 1 150px' }}><span>Tipo</span>
           <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
-            <option value="ferias">Férias</option>
-            <option value="folga">Folga</option>
+            {TIPOS_AUSENCIA.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
           </select>
         </label>
         <label className="field" style={{ flex: '0 1 170px' }}><span>De</span>
@@ -181,17 +180,17 @@ function Ausencias({ dados, ativos }) {
         <div className="people">
           {periodos.map((p) => (
             <div key={p.ids[0]} className="person">
-              <div className="avatar" style={{ background: p.tipo === 'ferias' ? 'var(--yellow)' : 'var(--chip)' }}>{iniciais(nome[p.func])}</div>
+              <div className={'avatar aus-' + p.tipo}>{iniciais(nome[p.func])}</div>
               <div className="info">
                 <span className="nm">{nome[p.func] || '?'}</span>
-                <span className="sub">{p.tipo === 'ferias' ? 'Férias' : 'Folga'} · {p.de === p.ate ? fmt(p.de) : fmt(p.de) + ' a ' + fmt(p.ate)}</span>
+                <span className="sub">{ausenciaNome(p.tipo)} · {p.de === p.ate ? fmt(p.de) : fmt(p.de) + ' a ' + fmt(p.ate)}</span>
               </div>
               <button type="button" className="mini" onClick={() => p.ids.forEach((id) => dados.removerAusencia(id))}>Cancelar</button>
             </div>
           ))}
         </div>
       ) : (
-        <p className="empty" style={{ padding: 0 }}>Nenhuma folga ou férias marcada daqui pra frente. Também dá para arrastar na agenda, na faixa “Fora da obra”.</p>
+        <p className="empty" style={{ padding: 0 }}>Nenhuma folga, férias ou falta marcada. Também dá para arrastar na agenda, na faixa “Fora da obra”.</p>
       )}
     </section>
   );

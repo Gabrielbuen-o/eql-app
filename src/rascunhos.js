@@ -75,6 +75,7 @@ export async function importarDoBanco(rel) {
   await guardar('rascunhos', {
     id: rel.id, demanda_id: rel.demanda_id, tipo: rel.tipo, dia: rel.dia, funcionario_id: rel.funcionario_id,
     observacao: rel.observacao || '', criadoEm: Date.parse(rel.criado_em) || Date.now(), remoto: true, concluir: false,
+    ...(rel.estrutura ? { estrutura: rel.estrutura } : {}),
   });
   for (const [i, a] of (rel.arquivos || []).entries()) {
     await guardar('arquivos', { id: a.id || `${rel.id}-${i}`, relatorioId: rel.id, ordem: a.ordem ?? i, tipo: a.tipo || 'foto', enviado: true, remoto: a });
@@ -179,16 +180,22 @@ async function registrar(r, lista, status, tr = true) {
   const linha = {
     demanda_id: r.demanda_id, funcionario_id: r.funcionario_id || null, dia: r.dia, tipo: r.tipo,
     observacao: (r.observacao || '').trim() || null, arquivos, ...(tr ? { status } : {}),
+    ...(r.estrutura ? { estrutura: r.estrutura } : {}), // ancoragem: mastros e skids
   };
+  // banco sem a coluna "estrutura" (arquivo 20 não rodado): manda sem ela
+  const semEstrutura = (error) => error && 'estrutura' in linha && /estrutura/i.test(error.message || '');
   if (!r.remoto) {
     const { data: { session } } = await supabase.auth.getSession();
-    const { error } = await supabase.from('relatorios').insert({ id: r.id, autor_id: session?.user?.id, ...linha });
+    const inserir = () => supabase.from('relatorios').insert({ id: r.id, autor_id: session?.user?.id, ...linha });
+    let { error } = await inserir();
+    if (semEstrutura(error)) { delete linha.estrutura; ({ error } = await inserir()); }
     if (error && !/duplicate|already exists|23505/i.test(error.message + (error.code || ''))) throw error;
     r.remoto = true;
     await guardar('rascunhos', { ...r });
     return;
   }
-  const { error } = await supabase.from('relatorios').update(linha).eq('id', r.id);
+  let { error } = await supabase.from('relatorios').update(linha).eq('id', r.id);
+  if (semEstrutura(error)) { delete linha.estrutura; ({ error } = await supabase.from('relatorios').update(linha).eq('id', r.id)); }
   if (error) throw error;
 }
 

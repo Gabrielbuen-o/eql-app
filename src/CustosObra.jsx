@@ -3,7 +3,7 @@ import { fmt, hoje } from './lib.js';
 import { TIPOS_CUSTO, brl, brlCentavos, pctFmt, resultadoDemanda, tipoCustoNome } from './custos.js';
 
 // aceita "20.000", "20000", "180,50" e "180.50"
-const num = (s) => {
+export const num = (s) => {
   if (s === '' || s == null) return null;
   let t = String(s).replace(/[^\d.,-]/g, '');
   if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
@@ -11,7 +11,7 @@ const num = (s) => {
   const n = Number(t);
   return Number.isFinite(n) ? n : null;
 };
-const paraCampo = (v, casas = 2) =>
+export const paraCampo = (v, casas = 2) =>
   v == null ? '' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: casas });
 
 // Aba "Custos e resultado" dentro da demanda (só administradores)
@@ -66,6 +66,9 @@ export function CustosObra({ demanda, dados, porDemanda }) {
 
       <div className="result">
         <div className="result-row strong"><span>Valor vendido</span><b>{r.vendido != null ? brlCentavos(r.vendido) : '—'}</b></div>
+        {(r.adicionais > 0 || r.adicionaisSemValor > 0) && (
+          <div className="result-row strong"><span>Adicionais{r.adicionaisSemValor ? <small>{r.adicionaisSemValor} sem valor ainda (aba Dados da demanda)</small> : null}</span><b>+ {brlCentavos(r.adicionais)}</b></div>
+        )}
         <div className="result-row neg"><span>Imposto {r.impostoPct != null ? `(${pctFmt(r.impostoPct)})` : ''}</span><b>− {brlCentavos(r.imposto)}</b></div>
         {linhas.map(([nome, valor, sub]) => (
           <div key={nome} className="result-row neg">
@@ -73,7 +76,7 @@ export function CustosObra({ demanda, dados, porDemanda }) {
           </div>
         ))}
         <div className={'result-row total ' + (r.resultado == null ? '' : r.resultado >= 0 ? 'pos' : 'bad')}>
-          <span>Resultado {r.margemPct != null && <small>margem de {pctFmt(r.margemPct)} sobre o vendido</small>}</span>
+          <span>Resultado {r.margemPct != null && <small>margem de {pctFmt(r.margemPct)} sobre o {r.adicionais ? 'total' : 'vendido'}</small>}</span>
           <b>{r.resultado != null ? brlCentavos(r.resultado) : 'informe o valor vendido'}</b>
         </div>
       </div>

@@ -2,11 +2,13 @@ import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ListaLancamentos, NovoLancamento } from './CustosObra.jsx';
 import { brl } from './custos.js';
-import { EMPRESAS, addDias, diaSemana, fmt, hoje, inicioSemana, ordemGrupo, situacao, tipoRelatorio } from './lib.js';
+import { EMPRESAS, TIPOS_AUSENCIA, addDias, ausenciaNome, diaSemana, fmt, hoje, inicioSemana, motivoVeiculoNome, ordemGrupo, situacao, tipoRelatorio } from './lib.js';
 
+// linhas de "Fora da obra": funcionários (folga, férias, falta) e veículos (manutenção, outro motivo)
 const FORA = [
-  { id: 'folga', nome: 'Folga' },
-  { id: 'ferias', nome: 'Férias' },
+  ...TIPOS_AUSENCIA.map((t) => ({ ...t, kind: 'func' })),
+  { id: 'v-manutencao', motivo: 'manutencao', nome: 'Veículo em manutenção', kind: 'veic' },
+  { id: 'v-outro', motivo: 'outro', nome: 'Veículo fora · outro motivo', kind: 'veic' },
 ];
 
 // Agenda semanal: linhas = "Fora" (folga/férias) + demandas; colunas = dias.
@@ -43,7 +45,7 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
   };
 
   const idx = useMemo(() => {
-    const cel = {}, recDia = {}, aus = {}, ausCel = {};
+    const cel = {}, recDia = {}, aus = {}, ausCel = {}, vfora = {};
     const push = (k, v) => (cel[k] ||= []).push(v);
     dados.alocacoes.forEach((a) => {
       push(a.demanda_id + '|' + a.dia, { kind: 'func', rec: a.funcionario_id, a });
@@ -57,16 +59,23 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
       aus[a.funcionario_id + '|' + a.dia] = a;
       (ausCel['out:' + a.tipo + '|' + a.dia] ||= []).push(a);
     });
+    (dados.veiculo_fora || []).forEach((f) => {
+      vfora[f.veiculo_id + '|' + f.dia] = f;
+      (ausCel['out:v-' + f.motivo + '|' + f.dia] ||= []).push(f);
+    });
     const custoCelula = {};
     (dados.custos_lancamentos || []).forEach((l) => { const k = l.demanda_id + '|' + l.dia; custoCelula[k] = (custoCelula[k] || 0) + Number(l.valor || 0); });
     const rels = {};
     (dados.relatorios || []).forEach((r) => (rels[r.demanda_id + '|' + r.dia] ||= []).push(r));
-    return { cel, recDia, aus, ausCel, custoCelula, rels };
-  }, [dados.alocacoes, dados.veiculo_alocacoes, dados.ausencias, dados.custos_lancamentos, dados.relatorios]);
+    return { cel, recDia, aus, ausCel, vfora, custoCelula, rels };
+  }, [dados.alocacoes, dados.veiculo_alocacoes, dados.ausencias, dados.veiculo_fora, dados.custos_lancamentos, dados.relatorios]);
   const temGente = (demandaId, dia) => (idx.cel[demandaId + '|' + dia] || []).some((c) => c.kind === 'func');
   const relatoriosLigados = !dados.faltando?.has('relatorios');
 
   const fora = (funcId, dia) => idx.aus[funcId + '|' + dia];
+  const veicFora = (veicId, dia) => idx.vfora[veicId + '|' + dia];
+  const temVeicFora = !dados.faltando?.has('veiculo_fora');
+  const linhasFora = FORA.filter((t) => t.kind === 'func' || (temVeicFora && veics.length));
   const livres = (dia) => funcs.filter((f) => !idx.recDia['func|' + f.id + '|' + dia] && !fora(f.id, dia));
 
   const prioridade = (d) => ({ atrasada: 0, urgente: 1 }[situacao(d)] ?? 2);
@@ -86,7 +95,27 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
     const [alvoId, dia] = chave.split('|');
     if (alvoId.startsWith('out:')) {
       const tipo = alvoId.slice(4);
-      if (c.kind === 'veic') { avisar('Veículos não entram em folga. Arraste para uma obra ou para a lixeira.'); return; }
+      const linha = FORA.find((t) => t.id === tipo);
+      if (!linha || linha.kind !== c.kind) {
+        avisar(c.kind === 'veic' ? 'Veículo fora de obra vai em “Veículo em manutenção” ou “outro motivo”.' : 'Funcionário fora da obra vai em Folga, Férias ou Falta.');
+        return;
+      }
+      if (c.kind === 'veic') {
+        let obs = null;
+        if (linha.motivo === 'outro') {
+          const ant = c.foraId && dados.veiculo_fora.find((x) => x.id === c.foraId);
+          obs = ant?.motivo === 'outro' ? ant.observacao : window.prompt(`Por que ${nome.veic[c.id] || 'o veículo'} fica fora de obra? (ex.: emprestado para a fábrica)`, '');
+          if (obs == null) return;
+          obs = String(obs).trim() || null;
+        }
+        if (c.foraId) {
+          const f = dados.veiculo_fora.find((x) => x.id === c.foraId);
+          if (f && f.dia !== dia) dados.removerVeiculoFora(c.foraId);
+        }
+        dados.marcarVeiculoFora(c.id, dia, linha.motivo, obs);
+        if (c.alocId) dados.removerAlocacao('veic', c.alocId);
+        return;
+      }
       if (c.ausId) {
         const a = dados.ausencias.find((x) => x.id === c.ausId);
         if (a && a.dia !== dia) dados.removerAusencia(c.ausId);
@@ -98,10 +127,12 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
     if (c.alocId) dados.moverAlocacao(c.kind, c.alocId, alvoId, dia);
     else dados.alocar(c.kind, c.id, alvoId, dia);
     if (c.ausId) dados.removerAusencia(c.ausId);
+    if (c.foraId) dados.removerVeiculoFora(c.foraId);
   };
   const descartar = (c) => {
     if (c.alocId) dados.removerAlocacao(c.kind, c.alocId);
     if (c.ausId) dados.removerAusencia(c.ausId);
+    if (c.foraId) dados.removerVeiculoFora(c.foraId);
   };
 
   // ---------- arrastar (mouse e toque, via pointer events) ----------
@@ -174,7 +205,7 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
         .filter((a) => a.dia >= ini && a.dia <= fim && abertas.has(a.demanda_id))
         .map((a) => ({ [col]: a[col], demanda_id: a.demanda_id, dia: addDias(a.dia, 7) }))
         .filter((a) => !existe.has(`${a[col]}|${a.demanda_id}|${a.dia}`))
-        .filter((a) => kind === 'veic' || !fora(a.funcionario_id, a.dia));
+        .filter((a) => (kind === 'veic' ? !veicFora(a.veiculo_id, a.dia) : !fora(a.funcionario_id, a.dia)));
       if (novas.length && (await dados.inserirAlocacoes(kind, novas))) total += novas.length;
     }
     avisar(total ? `${total} alocações copiadas da semana anterior.` : 'A semana anterior não tem nada novo para copiar.');
@@ -185,17 +216,17 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
   const nomeSel = selecionado ? nome[selecionado.kind][selecionado.id] : '';
 
   // ---------- chip dentro de uma célula ----------
-  const ChipCelula = ({ kind, recId, alocId, ausId, dia, extraClasse, aviso }) => {
-    const n = nome[kind][recId] || '?';
+  const ChipCelula = ({ kind, recId, alocId, ausId, foraId, dia, extraClasse, aviso, rotulo }) => {
+    const n = rotulo || nome[kind][recId] || '?';
     if (ro) return <span className={'chip small ro ' + extraClasse} title={aviso || n} style={{ paddingRight: 10 }}>{n}</span>;
     return (
       <span className={'chip small ' + extraClasse} title={aviso || n}
         onClick={(e) => e.stopPropagation()}
-        onPointerDown={(e) => { e.stopPropagation(); iniciar(e, { kind, id: recId, alocId, ausId, rotulo: n }); }}>
+        onPointerDown={(e) => { e.stopPropagation(); iniciar(e, { kind, id: recId, alocId, ausId, foraId, rotulo: n }); }}>
         {n}
         <button type="button" className="x" aria-label={`Remover ${n}`}
           onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => { e.stopPropagation(); descartar({ kind, alocId, ausId }); }}>×</button>
+          onClick={(e) => { e.stopPropagation(); descartar({ kind, alocId, ausId, foraId }); }}>×</button>
       </span>
     );
   };
@@ -213,7 +244,7 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
       <div className="agenda-head">
         <div>
           <h2>Agenda das equipes</h2>
-          <p className="agenda-sub">{ro ? 'Quem está em cada obra, dia a dia.' : 'Arraste funcionários e veículos para a obra e o dia. Quem estiver fora, arraste para Folga ou Férias.'}</p>
+          <p className="agenda-sub">{ro ? 'Quem está em cada obra, dia a dia.' : 'Arraste funcionários e veículos para a obra e o dia. Quem estiver fora, arraste para Folga, Férias ou Falta; veículo parado, para Manutenção ou outro motivo.'}</p>
         </div>
         <div className="week-nav">
           {!controlado && <>
@@ -238,7 +269,7 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
             return (
               <span key={f.id} role="button" tabIndex={0}
                 className={'chip' + (sel('func', f.id) ? ' sel' : '') + (livre ? ' free' : '') + (aus ? ' out' : '')}
-                title={aus ? `${f.nome} está de ${aus.tipo === 'ferias' ? 'férias' : 'folga'} hoje` : f.nome}
+                title={aus ? `${f.nome}: ${ausenciaNome(aus.tipo).toLowerCase()} hoje` : f.nome}
                 aria-pressed={sel('func', f.id)}
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && alternar('func', f.id)}
                 onPointerDown={(e) => iniciar(e, { kind: 'func', id: f.id, rotulo: f.nome, aoTocar: () => alternar('func', f.id) })}>
@@ -252,7 +283,8 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
           <span className="palette-hint">Veículos:</span>
           {veics.map((v) => (
             <span key={v.id} role="button" tabIndex={0}
-              className={'chip veic' + (sel('veic', v.id) ? ' sel' : '')}
+              className={'chip veic' + (sel('veic', v.id) ? ' sel' : '') + (veicFora(v.id, dia0) ? ' out' : '')}
+              title={veicFora(v.id, dia0) ? `${v.nome}: ${motivoVeiculoNome(veicFora(v.id, dia0)).toLowerCase()} hoje` : v.nome}
               aria-pressed={sel('veic', v.id)}
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && alternar('veic', v.id)}
               onPointerDown={(e) => iniciar(e, { kind: 'veic', id: v.id, rotulo: v.nome, aoTocar: () => alternar('veic', v.id) })}>
@@ -267,7 +299,7 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
       <div className="legend" aria-label="Legenda">
         <span><i style={{ background: 'var(--lav)' }} />Funcionário</span>
         <span><i style={{ background: 'var(--mint)' }} />Veículo</span>
-        <span><i style={{ background: 'var(--peach)', outline: '1.5px solid var(--late-ink)' }} />Conflito: duas obras no dia ou está de folga</span>
+        <span><i style={{ background: 'var(--peach)', outline: '1.5px solid var(--late-ink)' }} />Conflito: duas obras no dia ou está fora (folga, falta, manutenção…)</span>
         <span><i style={{ background: 'var(--red)', borderRadius: '50%' }} />Entrega em até 3 dias / atrasada</span>
         <span><i style={{ background: 'var(--yellow-dot)', borderRadius: '50%' }} />Entrega em até 7 dias</span>
       </div>
@@ -290,14 +322,17 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
           </thead>
           <tbody>
             <tr className="sep"><td colSpan={dias.length + 1}>Fora da obra</td></tr>
-            {FORA.map((t) => (
-              <tr key={t.id} className="out-row">
+            {linhasFora.map((t) => (
+              <tr key={t.id} className={'out-row' + (t.kind === 'veic' ? ' veic-row' : '')}>
                 <th scope="row" className="rowhead"><div className="n">{t.nome}</div></th>
                 {dias.map((dia) => {
                   const chave = 'out:' + t.id + '|' + dia;
-                  return celula(chave, dia, (idx.ausCel[chave] || []).map((a) => (
+                  return celula(chave, dia, (idx.ausCel[chave] || []).map((a) => (t.kind === 'veic' ? (
+                    <ChipCelula key={a.id} kind="veic" recId={a.veiculo_id} foraId={a.id} dia={dia} extraClasse={'veic ' + t.id}
+                      aviso={motivoVeiculoNome(a)} rotulo={a.motivo === 'outro' && a.observacao ? `${nome.veic[a.veiculo_id] || '?'} · ${a.observacao}` : null} />
+                  ) : (
                     <ChipCelula key={a.id} kind="func" recId={a.funcionario_id} ausId={a.id} dia={dia} extraClasse={t.id} />
-                  )));
+                  ))));
                 })}
               </tr>
             ))}
@@ -344,8 +379,10 @@ export function Agenda({ demandas, dados, avisar, podeEditar = true, admin = fal
                       return celula(chave, dia, [...(idx.cel[chave] || []).map(({ kind, rec, a }) => {
                         const duplo = idx.recDia[kind + '|' + rec + '|' + dia] > 1;
                         const aus = kind === 'func' && fora(rec, dia);
+                        const vf = kind === 'veic' && veicFora(rec, dia);
                         const n = nome[kind][rec] || '?';
-                        const aviso = aus ? `${n} está de ${aus.tipo === 'ferias' ? 'férias' : 'folga'} neste dia`
+                        const aviso = aus ? `${n}: ${ausenciaNome(aus.tipo).toLowerCase()} neste dia`
+                          : vf ? `${n}: ${motivoVeiculoNome(vf).toLowerCase()} neste dia`
                           : duplo ? `${n} está em mais de uma obra neste dia` : '';
                         return (
                           <ChipCelula key={a.id} kind={kind} recId={rec} alocId={a.id} dia={dia}

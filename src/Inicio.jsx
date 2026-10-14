@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { PainelDesktop } from './PainelDesktop.jsx';
-import { empresaPorId, faseNome, hoje, ordemGrupo, rotuloPrazo, situacao } from './lib.js';
+import { empresaPorId, faseNome, hoje, ordemGrupo, rotuloPrazo, situacao, ausenciaNome } from './lib.js';
 
 const PESO = { atrasada: 0, urgente: 1, semana: 2, ok: 3, sem: 4 };
 
@@ -132,12 +132,12 @@ function InicioCelular({ dados, eu, irPara }) {
           {fora.length ? (
             <div className="today-chips">
               {fora.map((a) => (
-                <span key={a.id} className={'t-chip ' + (a.tipo === 'ferias' ? 'ferias' : 'folga')}>
-                  {nomeFunc[a.funcionario_id] || '?'} · {a.tipo === 'ferias' ? 'férias' : 'folga'}
+                <span key={a.id} className={'t-chip ' + (a.tipo || 'folga')}>
+                  {nomeFunc[a.funcionario_id] || '?'} · {ausenciaNome(a.tipo).toLowerCase()}
                 </span>
               ))}
             </div>
-          ) : <p className="empty" style={{ padding: 0 }}>Ninguém de folga ou férias.</p>}
+          ) : <p className="empty" style={{ padding: 0 }}>Ninguém de folga, férias ou falta.</p>}
         </section>
 
         <section className="card stack" aria-label="Livres hoje">

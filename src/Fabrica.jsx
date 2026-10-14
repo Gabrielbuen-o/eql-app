@@ -168,7 +168,8 @@ export function Fabrica({ dados, tv, setTv, pode, custos }) {
         <DemandaModal inicial={editando} grupos={grupos} clientes={listaClientes(dados)} criarCliente={pode.gestao && !dados.faltando.has('clientes') ? dados.criarCliente : null} onFechar={() => setEditando(null)}
           onSalvar={dados.salvarDemanda} onExcluir={dados.excluirDemanda}
           limitado={!pode.gestao} perfis={dados.perfis}
-          financeiro={pode.admin && custos ? { dados, porDemanda: custos } : null} />
+          financeiro={pode.admin && custos ? { dados, porDemanda: custos } : null}
+          admin={pode.admin} gerente={pode.papel === 'gerente'} dados={dados} />
       )}
     </>
   );

@@ -15,7 +15,12 @@ const mesMais = (m, n) => { const d = parse(m + '-01'); d.setMonth(d.getMonth() 
 // Tudo o que o painel precisa para um mês
 export function resumoFinanceiro(dados, porDemanda, mes) {
   const fin = Object.fromEntries((dados.financeiro_demandas || []).map((f) => [f.demanda_id, f]));
-  const vendidoDe = (d) => (fin[d.id]?.valor_vendido != null ? Number(fin[d.id].valor_vendido) : null);
+  // valor da obra = vendido + adicionais
+  const adic = {};
+  (dados.demanda_adicionais || []).forEach((a) => { adic[a.demanda_id] = (adic[a.demanda_id] || 0) + Number(a.valor || 0); });
+  const receb = {};
+  (dados.demanda_recebimentos || []).forEach((r) => { receb[r.demanda_id] = (receb[r.demanda_id] || 0) + Number(r.valor || 0); });
+  const vendidoDe = (d) => (fin[d.id]?.valor_vendido != null || adic[d.id] ? Number(fin[d.id]?.valor_vendido || 0) + (adic[d.id] || 0) : null);
   const impostoDe = (d) => { const v = vendidoDe(d), p = fin[d.id]?.imposto_pct; return v != null && p != null ? (v * Number(p)) / 100 : 0; };
   const temData = dados.demandas.some((d) => 'faturado_em' in d);
 
@@ -27,7 +32,10 @@ export function resumoFinanceiro(dados, porDemanda, mes) {
   const impostos = faturadas.reduce((t, d) => t + impostoDe(d), 0);
   const semValor = faturadas.filter((d) => vendidoDe(d) == null);
 
-  const aReceber = somaVendido(dados.demandas.filter((d) => d.pagamento === 'faturada'));
+  // a receber: o que foi faturado menos as entradas já lançadas em cada obra
+  const aReceber = dados.demandas.filter((d) => d.pagamento === 'faturada')
+    .reduce((t, d) => t + Math.max(0, (vendidoDe(d) || 0) - (receb[d.id] || 0)), 0);
+  const recebidoMes = (dados.demanda_recebimentos || []).filter((r) => mesDe(r.dia) === mes).reduce((t, r) => t + Number(r.valor || 0), 0);
   const aFaturarDs = dados.demandas.filter((d) => (d.pagamento || 'a_faturar') === 'a_faturar' && vendidoDe(d) != null);
   const aFaturar = somaVendido(aFaturarDs);
   const concluidasSemFaturar = aFaturarDs.filter((d) => d.arquivada);
@@ -54,12 +62,12 @@ export function resumoFinanceiro(dados, porDemanda, mes) {
   // resultado por obra (as que têm valor vendido)
   const obras = dados.demandas
     .map((d) => ({ d, r: resultadoDemanda(d.id, dados, porDemanda) }))
-    .filter((x) => x.r.vendido != null)
+    .filter((x) => x.r.total != null)
     .sort((a, b) => b.r.resultado - a.r.resultado);
   const margemMedia = obras.length ? obras.reduce((t, x) => t + (x.r.margemPct || 0), 0) / obras.length : null;
 
   return {
-    temData, faturado, faturadoAnterior, impostos, semValor, faturadas, aReceber, aFaturar, concluidasSemFaturar,
+    temData, faturado, faturadoAnterior, impostos, semValor, faturadas, aReceber, recebidoMes, aFaturar, concluidasSemFaturar,
     porTipo, maoDeObra, diasSemCusto, custos, resultado, meses, obras, margemMedia,
   };
 }
@@ -71,7 +79,7 @@ export function useMesFinanceiro(dia) {
 
 export function useResumoFinanceiro(dados, porDemanda, mes, ativo) {
   return useMemo(() => (ativo ? resumoFinanceiro(dados, porDemanda, mes) : null),
-    [ativo, dados.demandas, dados.financeiro_demandas, dados.custos_lancamentos, dados.custos_funcionarios, dados.alocacoes, porDemanda, mes]); // eslint-disable-line
+    [ativo, dados.demandas, dados.financeiro_demandas, dados.demanda_adicionais, dados.demanda_recebimentos, dados.custos_lancamentos, dados.custos_funcionarios, dados.alocacoes, porDemanda, mes]); // eslint-disable-line
 }
 
 export function PainelFinanceiro({ f, dados, mes, irPara }) {
@@ -94,7 +102,7 @@ export function PainelFinanceiro({ f, dados, mes, irPara }) {
           dica={varPct == null ? `${f.faturadas.length} ${f.faturadas.length === 1 ? 'obra faturada' : 'obras faturadas'}`
             : `${varPct >= 0 ? '▲' : '▼'} ${pctFmt(Math.abs(varPct))} vs. mês anterior`}
           tom={varPct == null ? '' : varPct >= 0 ? 'bom' : 'ruim'} />
-        <FinKpi rotulo="A receber" valor={brl(f.aReceber)} dica="faturado e ainda não pago" />
+        <FinKpi rotulo="A receber" valor={brl(f.aReceber)} dica={f.recebidoMes ? `entrou ${brl(f.recebidoMes)} neste mês` : 'faturado menos o que já entrou'} />
         <FinKpi rotulo="A faturar" valor={brl(f.aFaturar)}
           dica={f.concluidasSemFaturar.length ? `${f.concluidasSemFaturar.length} ${f.concluidasSemFaturar.length === 1 ? 'obra concluída' : 'obras concluídas'} sem faturar` : 'vendido, ainda não faturado'}
           tom={f.concluidasSemFaturar.length ? 'ruim' : ''} />
@@ -217,14 +225,14 @@ function ResultadoObras({ obras }) {
     <>
       <div className="fin-obras" role="table" aria-label="Resultado por obra">
         <div className="fin-obra cab" role="row">
-          <span role="columnheader">Obra</span><span role="columnheader">Vendido</span><span role="columnheader">Custos + impostos</span>
+          <span role="columnheader">Obra</span><span role="columnheader">Valor total</span><span role="columnheader">Custos + impostos</span>
           <span role="columnheader">Resultado</span><span role="columnheader">Margem</span>
         </div>
         {lista.map(({ d, r }) => (
           <div key={d.id} className="fin-obra" role="row">
             <span role="cell" className="fin-obra-n"><span className="dot" style={{ background: empresaPorId[d.empresa]?.cor }} />{d.nome}
               {d.arquivada && <small> · concluída</small>}</span>
-            <span role="cell">{brl(r.vendido)}</span>
+            <span role="cell">{brl(r.total)}</span>
             <span role="cell">{brl(r.custos + r.imposto)}</span>
             <span role="cell" className={r.resultado >= 0 ? 'pos' : 'bad'}>
               <span className={'fin-res-bar ' + (r.resultado >= 0 ? 'pos' : 'neg')} style={{ width: `${(Math.abs(r.resultado) / maxAbs) * 100}%` }} />

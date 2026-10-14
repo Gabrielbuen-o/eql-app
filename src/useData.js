@@ -21,8 +21,12 @@ const TABELAS = {
   orcamento_parametros: ['versao', true, false],
   clientes: ['nome', true, false],
   perfis_publicos: ['nome', true, false], // nome e foto dos colegas (quem não é administrador não lê o nível de acesso)
+  demanda_recebimentos: ['dia', true, false], // só administradores
+  demanda_adicionais: ['dia', true, false], // só administradores (com valor)
+  adicionais_publicos: ['dia', true, false], // gerente: os adicionais sem o valor
+  veiculo_fora: ['dia', true, true],
 };
-const SEM_TEMPO_REAL = ['perfis_publicos'];
+const SEM_TEMPO_REAL = ['perfis_publicos', 'adicionais_publicos'];
 const NOMES = Object.keys(TABELAS);
 
 // Carrega as tabelas, escuta mudanças em tempo real e expõe as ações.
@@ -212,6 +216,19 @@ export function useData(avisar, userId) {
   };
   const removerAusencia = (id) => apagar('ausencias', id);
 
+  // Veículo fora de obra (manutenção ou outro motivo): um registro por veículo por dia
+  const marcarVeiculoFora = async (veiculo_id, dia, motivo = 'manutencao', observacao = null) => {
+    const ex = dbRef.current.veiculo_fora.find((f) => f.veiculo_id === veiculo_id && f.dia === dia);
+    if (ex) return ex.motivo === motivo && (ex.observacao || null) === (observacao || null) ? true : atualizar('veiculo_fora', ex.id, { motivo, observacao });
+    return inserir('veiculo_fora', { veiculo_id, dia, motivo, observacao });
+  };
+  const marcarVeiculoForaPeriodo = async (veiculo_id, dias, motivo, observacao) => {
+    const ja = new Map(dbRef.current.veiculo_fora.filter((f) => f.veiculo_id === veiculo_id).map((f) => [f.dia, f]));
+    for (const d of dias) { const f = ja.get(d); if (f && (f.motivo !== motivo || (f.observacao || null) !== (observacao || null))) await atualizar('veiculo_fora', f.id, { motivo, observacao }); }
+    return inserir('veiculo_fora', dias.filter((d) => !ja.has(d)).map((dia) => ({ veiculo_id, dia, motivo, observacao })), false);
+  };
+  const removerVeiculoFora = (id) => apagar('veiculo_fora', id);
+
   // ---------- Perfis e fotos ----------
   const atualizarPerfil = async (id, campos) => {
     const ok = await atualizar('perfis', id, campos);
@@ -244,6 +261,16 @@ export function useData(avisar, userId) {
     return !error;
   };
   const lancarCusto = (linha) => inserir('custos_lancamentos', linha);
+  // Recebimentos da obra (data de entrada, NF, valor) e adicionais
+  const lancarRecebimento = (linha) => inserir('demanda_recebimentos', linha);
+  const apagarRecebimento = (id) => apagar('demanda_recebimentos', id);
+  const incluirAdicional = async (linha) => { const ok = await inserir('demanda_adicionais', linha, false); recarregar('adicionais_publicos'); return ok; };
+  const atualizarAdicional = async (id, campos) => { const ok = await atualizar('demanda_adicionais', id, campos); recarregar('adicionais_publicos'); return ok; };
+  const apagarAdicional = async (id) => {
+    setTabela('adicionais_publicos', (xs) => xs.filter((x) => x.id !== id));
+    await apagar('demanda_adicionais', id);
+    recarregar('adicionais_publicos');
+  };
 
   // ---------- Relatórios de obra ----------
   // arquivos já comprimidos pelo app; cada foto vai com uma miniatura para as listas ficarem leves
@@ -307,8 +334,10 @@ export function useData(avisar, userId) {
   }, [db.perfis, db.perfis_publicos]);
 
   return {
-    ...db, perfis, carregando, online, faltando, recarregarTabela: recarregar,
+    ...db, perfis, carregando, online, faltando, recarregarTabela: recarregar, euId: userId,
     definirCusto, apagarCusto, salvarFinanceiro, lancarCusto, apagarLancamento,
+    lancarRecebimento, apagarRecebimento, incluirAdicional, atualizarAdicional, apagarAdicional,
+    marcarVeiculoFora, marcarVeiculoForaPeriodo, removerVeiculoFora,
     enviarArquivo, urlArquivo, salvarRelatorio, apagarRelatorio, salvarFrase, alternarFrase, apagarFrase, salvarCamposRelatorio,
     salvarItemEpi, movimentarEpi, atualizarMovimentoEpi, apagarMovimentoEpi,
     atualizarPerfil, enviarFoto,
@@ -327,7 +356,8 @@ function limiteDias() {
 }
 
 // recursos que dependem de arquivos SQL opcionais: não geram aviso ao carregar
-const OPCIONAIS = ['custos_funcionarios', 'financeiro_demandas', 'custos_lancamentos', 'relatorios', 'frases', 'epi_itens', 'epi_movimentos', 'orcamentos', 'orcamento_parametros', 'clientes', 'perfis_publicos'];
+const OPCIONAIS = ['custos_funcionarios', 'financeiro_demandas', 'custos_lancamentos', 'relatorios', 'frases', 'epi_itens', 'epi_movimentos', 'orcamentos', 'orcamento_parametros', 'clientes', 'perfis_publicos',
+  'demanda_recebimentos', 'demanda_adicionais', 'adicionais_publicos', 'veiculo_fora'];
 
 const CAMPOS_DEMANDA = ['empresa', 'grupo', 'nome', 'descricao', 'fase', 'percentual', 'inicio', 'entrega', 'pagamento',
   'qtd_total', 'qtd_produzida', 'unidade', 'arquivada', 'produto', 'especificacao'];

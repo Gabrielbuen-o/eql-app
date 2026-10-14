@@ -6,10 +6,10 @@ import { Avatar } from './Avatar.jsx';
 const TIPOS = [
   { id: 'todas', nome: 'Tudo', tabelas: null },
   { id: 'demandas', nome: 'Demandas', tabelas: ['demandas'] },
-  { id: 'agenda', nome: 'Agenda, folgas e férias', tabelas: ['alocacoes', 'veiculo_alocacoes', 'ausencias'] },
+  { id: 'agenda', nome: 'Agenda, folgas, férias e faltas', tabelas: ['alocacoes', 'veiculo_alocacoes', 'ausencias', 'veiculo_fora'] },
   { id: 'equipes', nome: 'Funcionários e custos', tabelas: ['funcionarios', 'custos_funcionarios'] },
   { id: 'frotas', nome: 'Veículos', tabelas: ['veiculos'] },
-  { id: 'custos', nome: 'Valores e custos das obras', tabelas: ['financeiro_demandas', 'custos_lancamentos'] },
+  { id: 'custos', nome: 'Valores, custos e recebimentos', tabelas: ['financeiro_demandas', 'custos_lancamentos', 'demanda_recebimentos', 'demanda_adicionais'] },
   { id: 'usuarios', nome: 'Usuários', tabelas: ['perfis'] },
 ];
 
@@ -20,7 +20,7 @@ const CAMPOS = {
   papel: 'Acesso', foto_url: 'Foto', cliente_grupo: 'Grupo do cliente', funcao: 'Função', placa: 'Placa',
   proxima_manutencao: 'Próxima manutenção', observacoes: 'Observações', email: 'E-mail',
   produto: 'Produto', especificacao: 'Especificação', custo_diario: 'Custo por dia', vigente_desde: 'Vale a partir de',
-  valor_vendido: 'Valor vendido', imposto_pct: 'Imposto', valor: 'Valor',
+  valor_vendido: 'Valor vendido', imposto_pct: 'Imposto', valor: 'Valor', nf: 'NF', motivo: 'Motivo', observacao: 'Observação',
 };
 const OCULTAR = new Set(['ordem']);
 const EMPRESAS = { engenharia: 'Engenharia', impermeabilizacao: 'Impermeabilização', eko: 'Eko' };
@@ -33,6 +33,9 @@ function verbo(a) {
   if (t === 'ausencias') return { criou: 'marcou', apagou: 'desmarcou', alterou: 'alterou' }[x];
   if (t === 'financeiro_demandas') return { criou: 'definiu o valor da obra', apagou: 'apagou o valor da obra', alterou: 'alterou o valor da obra' }[x];
   if (t === 'custos_lancamentos') return { criou: 'lançou custo em', apagou: 'apagou o custo de', alterou: 'alterou o custo de' }[x];
+  if (t === 'veiculo_fora') return { criou: 'tirou de obra o veículo', apagou: 'voltou para a agenda o veículo', alterou: 'mudou o motivo do veículo' }[x];
+  if (t === 'demanda_recebimentos') return { criou: 'lançou entrada em', apagou: 'apagou a entrada de', alterou: 'alterou a entrada de' }[x];
+  if (t === 'demanda_adicionais') return { criou: 'incluiu adicional em', apagou: 'tirou o adicional de', alterou: 'alterou o adicional de' }[x];
   if (t === 'custos_funcionarios') return { criou: 'definiu o custo de', apagou: 'apagou o custo de', alterou: 'alterou o custo de' }[x];
   const nome = { demandas: 'a demanda', funcionarios: 'o funcionário', veiculos: 'o veículo', perfis: 'o usuário' }[t] || t;
   return `${x} ${nome}`;
@@ -44,7 +47,8 @@ function valor(campo, v, nomes) {
   if (campo === 'papel') return papelNome[v] || v;
   if (campo === 'empresa') return EMPRESAS[v] || v;
   if (campo === 'pagamento') return PAGTO[v] || v;
-  if (campo === 'tipo') return { ferias: 'Férias', folga: 'Folga', material: 'Material', combustivel: 'Combustível', despesa: 'Despesa extra' }[v] || v;
+  if (campo === 'tipo') return { ferias: 'Férias', folga: 'Folga', falta: 'Falta', material: 'Material', combustivel: 'Combustível', despesa: 'Despesa extra' }[v] || v;
+  if (campo === 'motivo') return { manutencao: 'Manutenção', outro: 'Outro motivo' }[v] || v;
   if (campo === 'percentual') return v + '%';
   if (campo === 'imposto_pct') return v + '%';
   if (campo === 'valor_vendido' || campo === 'valor') return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

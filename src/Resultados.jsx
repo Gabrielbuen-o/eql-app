@@ -24,14 +24,14 @@ export function Resultados({ dados, porDemanda }) {
     .map((d) => ({ d, r: resultadoDemanda(d.id, dados, porDemanda) }));
 
   const somar = (xs) => xs.reduce((t, { r }) => ({
-    vendido: t.vendido + (r.vendido || 0), imposto: t.imposto + r.imposto, mo: t.mo + r.mo.total,
+    vendido: t.vendido + (r.total || 0), imposto: t.imposto + r.imposto, mo: t.mo + r.mo.total,
     material: t.material + r.material, combustivel: t.combustivel + r.combustivel, despesa: t.despesa + r.despesa,
     custos: t.custos + r.custos, resultado: t.resultado + (r.resultado ?? -r.custos),
   }), { vendido: 0, imposto: 0, mo: 0, material: 0, combustivel: 0, despesa: 0, custos: 0, resultado: 0 });
 
   const geral = somar(lista);
-  const comValor = lista.filter(({ r }) => r.vendido != null);
-  const semValor = lista.filter(({ r }) => r.vendido == null && r.custos > 0).length;
+  const comValor = lista.filter(({ r }) => r.total != null);
+  const semValor = lista.filter(({ r }) => r.total == null && r.custos > 0).length;
   const margem = geral.vendido ? (somar(comValor).resultado / geral.vendido) * 100 : null;
 
   // demandas com valores primeiro, depois as demais em ordem alfabética
@@ -91,7 +91,7 @@ export function Resultados({ dados, porDemanda }) {
                   ...g.itens.map(({ d, r }) => (
                     <tr key={d.id}>
                       <th scope="row">{d.nome}<small>{d.empresa === 'eko' ? d.produto : d.grupo}{d.arquivada ? ' · concluída' : ''}</small></th>
-                      <td>{r.vendido != null ? brl(r.vendido) : '—'}</td>
+                      <td>{r.total != null ? brl(r.total) : '—'}{r.adicionais ? <small>com {brl(r.adicionais)} de adicionais</small> : null}</td>
                       <td>{r.imposto ? brl(r.imposto) : '—'}</td>
                       <td>{r.mo.total ? brl(r.mo.total) : '—'}{r.mo.semCusto ? <small className="warn">{r.mo.semCusto} dia(s) sem custo</small> : null}</td>
                       <td>{r.material ? brl(r.material) : '—'}</td>

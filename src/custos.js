@@ -52,22 +52,30 @@ export const TIPOS_CUSTO = [
 ];
 export const tipoCustoNome = Object.fromEntries(TIPOS_CUSTO.map((t) => [t.id, t.nome]));
 
-// Junta tudo de uma demanda: vendido, imposto, mão de obra e lançamentos
+// Junta tudo de uma demanda: vendido + adicionais, imposto, mão de obra, lançamentos e recebimentos
 export function resultadoDemanda(demandaId, dados, porDemanda) {
   const fin = (dados.financeiro_demandas || []).find((f) => f.demanda_id === demandaId);
   const lanc = (dados.custos_lancamentos || []).filter((l) => l.demanda_id === demandaId);
   const soma = (tipo) => lanc.filter((l) => l.tipo === tipo).reduce((t, l) => t + Number(l.valor || 0), 0);
   const mo = porDemanda?.[demandaId] || { total: 0, dias: 0, semCusto: 0, porFunc: [] };
   const vendido = fin?.valor_vendido != null ? Number(fin.valor_vendido) : null;
+  const adicionaisLista = (dados.demanda_adicionais || []).filter((a) => a.demanda_id === demandaId);
+  const adicionais = adicionaisLista.reduce((t, a) => t + Number(a.valor || 0), 0);
+  const adicionaisSemValor = adicionaisLista.filter((a) => a.valor == null).length;
+  const recebimentos = (dados.demanda_recebimentos || []).filter((r) => r.demanda_id === demandaId);
+  const recebido = recebimentos.reduce((t, r) => t + Number(r.valor || 0), 0);
+  // valor total da obra = vendido + adicionais (o imposto incide sobre o total)
+  const total = vendido != null || adicionais > 0 ? (vendido || 0) + adicionais : null;
   const impostoPct = fin?.imposto_pct != null ? Number(fin.imposto_pct) : null;
-  const imposto = vendido != null && impostoPct != null ? (vendido * impostoPct) / 100 : 0;
+  const imposto = total != null && impostoPct != null ? (total * impostoPct) / 100 : 0;
   const material = soma('material'), combustivel = soma('combustivel'), despesa = soma('despesa');
   const custos = mo.total + material + combustivel + despesa;
-  const resultado = vendido != null ? vendido - imposto - custos : null;
+  const resultado = total != null ? total - imposto - custos : null;
   return {
-    vendido, impostoPct, imposto, mo, material, combustivel, despesa, custos, resultado,
-    margemPct: vendido ? (resultado / vendido) * 100 : null,
-    lancamentos: lanc, temAlgo: vendido != null || custos > 0,
+    vendido, adicionais, adicionaisLista, adicionaisSemValor, total, impostoPct, imposto, mo, material, combustivel, despesa, custos, resultado,
+    margemPct: total ? (resultado / total) * 100 : null,
+    recebimentos, recebido, saldo: total != null ? total - recebido : null,
+    lancamentos: lanc, temAlgo: total != null || custos > 0,
   };
 }
 
