@@ -808,7 +808,7 @@ async function entregar(arquivos, nomeZip) {
 }
 
 // Visualizador de um relatório (usado no campo e na visão dos administradores)
-export function VerRelatorio({ r, dados, onFechar, onApagar, exportarRfi = false, salvarCampos = null }) {
+export function VerRelatorio({ r, dados, onFechar, onApagar, exportarRfi = false, salvarCampos = null, semDownload = false }) {
   const [rfiAberto, setRfiAberto] = useState(false);
   const [foco, setFoco] = useState(null);
   const [confirmar, setConfirmar] = useState(false);
@@ -875,7 +875,7 @@ export function VerRelatorio({ r, dados, onFechar, onApagar, exportarRfi = false
             </p>
           </div>
           <div className="rel-topo-acoes">
-            {(r.arquivos || []).length > 0 && (
+            {!semDownload && (r.arquivos || []).length > 0 && (
               <button type="button" className="pill lime" disabled={!!baixando} onClick={() => baixar(r.arquivos)}>
                 {baixando || `Baixar ${(r.arquivos || []).length > 1 ? `todas (${(r.arquivos || []).length})` : ''}`}
               </button>
@@ -927,7 +927,7 @@ export function VerRelatorio({ r, dados, onFechar, onApagar, exportarRfi = false
                 {v.lat != null ? ` · ${coordTexto(v.lat, v.lon, v.precisao)}` : ''}
               </span>
               {v.lat != null && <a className="link-btn" href={linkMapa(v.lat, v.lon)} target="_blank" rel="noreferrer">Ver no mapa</a>}
-              <button type="button" className="link-btn" onClick={() => baixar([v])}>Baixar vídeo</button>
+              {!semDownload && <button type="button" className="link-btn" onClick={() => baixar([v])}>Baixar vídeo</button>}
             </div>
           </div>
         ))}
@@ -955,7 +955,7 @@ export function VerRelatorio({ r, dados, onFechar, onApagar, exportarRfi = false
             {fotos[foco].lat != null && <a className="pill" href={linkMapa(fotos[foco].lat, fotos[foco].lon)} target="_blank" rel="noreferrer">Ver no mapa</a>}
             {/* o app não dá zoom; a foto aberta sozinha dá (pinça) */}
             <a className="pill" href={dados.urlArquivo(fotos[foco].caminho)} target="_blank" rel="noreferrer">Ampliar</a>
-            <button type="button" className="pill" disabled={!!baixando} onClick={() => baixar([fotos[foco]])}>{baixando || 'Baixar'}</button>
+            {!semDownload && <button type="button" className="pill" disabled={!!baixando} onClick={() => baixar([fotos[foco]])}>{baixando || 'Baixar'}</button>}
             <button type="button" className="pill" onClick={() => setFoco(null)}>Fechar</button>
           </div>
         </div>

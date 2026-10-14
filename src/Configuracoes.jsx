@@ -1,17 +1,35 @@
 import { listaClientes } from './ClienteCampo.jsx';
 import { useRef, useState } from 'react';
 import { Atividades } from './Atividades.jsx';
-import { FRASES_PADRAO, PAPEIS, PREFS_PADRAO, hoje, mensagemDoDia, papelNome, reduzirImagem, supabase, tempoRelativo } from './lib.js';
+import { Visualizacoes } from './Visualizacoes.jsx';
+import { FRASES_PADRAO, PAPEIS, PREFS_PADRAO, addDias, diaSemana, fmt, hoje, mensagemDoDia, papelNome, reduzirImagem, supabase, tempoRelativo } from './lib.js';
 import { Avatar } from './Avatar.jsx';
 
-export function Configuracoes({ dados, eu, usuario, pode, salvarPrefs, avisar, verComo = null }) {
+const ABAS_CFG = [
+  { id: 'usuarios', nome: 'Usuários', desc: 'Quem entra no app, tipo de acesso e último acesso' },
+  { id: 'visualizacoes', nome: 'Visualizações', desc: 'O que cada cliente vê no portal' },
+  { id: 'clientes', nome: 'Clientes', desc: 'Empresas atendidas, obras e acessos ao portal' },
+  { id: 'frases', nome: 'Frases', desc: 'Frase do dia do app' },
+  { id: 'registros', nome: 'Registros', desc: 'Quem fez o quê e quando' },
+];
+
+export function Configuracoes({ dados, eu, usuario, pode, salvarPrefs, avisar, verComo = null, resto = [], irSub }) {
   const prefs = { ...PREFS_PADRAO, ...lerPrefs(), ...(eu?.preferencias || {}) };
   const semPerfis = dados.faltando.has('perfis');
   const set = (k, v) => salvarPrefs({ ...prefs, [k]: v });
   const [filtroLog, setFiltroLog] = useState(null);
-  const verAtividades = (id) => {
-    setFiltroLog(id);
-    setTimeout(() => document.getElementById('registro-atividades')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  const aba = ABAS_CFG.some((a) => a.id === resto[0]) ? resto[0] : 'usuarios';
+  const irAba = (id, extra) => {
+    irSub?.(id + (extra ? '/' + extra : ''));
+    // leva a tela até as abas (no celular elas ficam abaixo da conta e da aparência)
+    setTimeout(() => document.querySelector('.cfg-abas')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+  };
+  const verAtividades = (id) => { setFiltroLog(id); irAba('registros'); };
+  const contagem = {
+    usuarios: dados.perfis.length,
+    clientes: (dados.clientes || []).filter((c) => c.ativo !== false).length,
+    frases: (dados.frases || []).filter((f) => f.ativo !== false).length,
+    visualizacoes: (dados.portal_config || []).filter((c) => c.escopo !== '*').length || null,
   };
 
   return (
@@ -19,7 +37,7 @@ export function Configuracoes({ dados, eu, usuario, pode, salvarPrefs, avisar, v
       <header className="head">
         <div>
           <h1>Configurações</h1>
-          <p className="date">Sua conta, aparência do app{pode.verOperacao ? ' e usuários' : ''}</p>
+          <p className="date">Sua conta, aparência do app{pode.admin ? ', usuários, clientes e o que cada cliente vê' : ''}</p>
         </div>
       </header>
 
@@ -55,10 +73,24 @@ export function Configuracoes({ dados, eu, usuario, pode, salvarPrefs, avisar, v
         </section>
       </div>
 
-      {pode.admin && !semPerfis && <Usuarios dados={dados} eu={eu} pode={pode} avisar={avisar} verAtividades={verAtividades} verComo={verComo} />}
-      {pode.admin && <Clientes dados={dados} avisar={avisar} verComo={verComo} />}
-      {pode.admin && <Frases dados={dados} />}
-      {pode.admin && !semPerfis && <Atividades dados={dados} filtroUsuario={filtroLog} setFiltroUsuario={setFiltroLog} />}
+      {pode.admin && (
+        <>
+          <nav className="cfg-abas" aria-label="Seções de configuração">
+            {ABAS_CFG.map((a) => (
+              <button key={a.id} type="button" className={aba === a.id ? 'on' : ''} aria-current={aba === a.id ? 'page' : undefined} onClick={() => irAba(a.id)}>
+                {a.nome}{contagem[a.id] ? <span className="cfg-n">{contagem[a.id]}</span> : null}
+              </button>
+            ))}
+          </nav>
+          <p className="note cfg-desc">{ABAS_CFG.find((a) => a.id === aba).desc}</p>
+          {aba === 'usuarios' && (semPerfis ? <p className="note">Rode o arquivo 04_acessos_e_perfis.sql.</p>
+            : <Usuarios dados={dados} eu={eu} pode={pode} avisar={avisar} verAtividades={verAtividades} verComo={verComo} />)}
+          {aba === 'visualizacoes' && <Visualizacoes dados={dados} avisar={avisar} verComo={verComo} clienteId={resto[1] || '*'} irCliente={(id) => irAba('visualizacoes', id === '*' ? null : id)} />}
+          {aba === 'clientes' && <Clientes dados={dados} avisar={avisar} verComo={verComo} irVis={(id) => irAba('visualizacoes', id)} />}
+          {aba === 'frases' && <Frases dados={dados} />}
+          {aba === 'registros' && !semPerfis && <Atividades dados={dados} filtroUsuario={filtroLog} setFiltroUsuario={setFiltroLog} />}
+        </>
+      )}
     </>
   );
 }
@@ -122,14 +154,42 @@ function BotaoFoto({ perfil, dados, grande, online, podeTrocar = true }) {
 }
 
 function Usuarios({ dados, eu, pode, avisar, verAtividades, verComo }) {
-  const lista = [...dados.perfis].sort((a, b) =>
-    (dados.online.has(b.id) - dados.online.has(a.id)) || (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
-  const qtdOnline = lista.filter((p) => dados.online.has(p.id)).length;
+  const [filtro, setFiltro] = useState('todos');
+  const [busca, setBusca] = useState('');
+  const todos = dados.perfis;
+  const conta = (papel) => todos.filter((p) => p.papel === papel).length;
+  const semEmpresa = todos.filter((p) => p.papel === 'cliente' && !(p.cliente_grupo || '').trim());
+  const nunca = todos.filter((p) => !p.ultimo_acesso);
+  const semana = todos.filter((p) => p.ultimo_acesso && Date.now() - Date.parse(p.ultimo_acesso) < 7 * 864e5).length;
+  const qtdOnline = todos.filter((p) => dados.online.has(p.id)).length;
+  const b = busca.trim().toLowerCase();
+  const lista = todos
+    .filter((p) => filtro === 'todos' || (filtro === 'online' ? dados.online.has(p.id) : filtro === 'atencao' ? semEmpresa.includes(p) || nunca.includes(p) : p.papel === filtro))
+    .filter((p) => !b || [p.nome, p.email, p.cliente_grupo].some((x) => (x || '').toLowerCase().includes(b)))
+    .sort((a, c) => (dados.online.has(c.id) - dados.online.has(a.id)) || (a.nome || '').localeCompare(c.nome || '', 'pt-BR'));
+  const chips = [
+    ['todos', `Todos ${todos.length}`], ['online', `Online ${qtdOnline}`],
+    ...PAPEIS.map((r) => [r.id, `${r.nome} ${conta(r.id)}`]),
+    ...(semEmpresa.length || nunca.length ? [['atencao', `Atenção ${new Set([...semEmpresa, ...nunca]).size}`]] : []),
+  ];
   return (
     <section className="card stack" aria-label="Usuários">
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <h2 className="card-title">Usuários</h2>
-        <span className="badge green">{qtdOnline} online agora</span>
+      <div className="cfg-kpis">
+        <div><b>{todos.length}</b><span>usuários</span></div>
+        <div><b className="ok">{qtdOnline}</b><span>online agora</span></div>
+        <div><b>{semana}</b><span>entraram nos últimos 7 dias</span></div>
+        <div><b>{conta('cliente')}</b><span>acessos de clientes</span></div>
+      </div>
+      {semEmpresa.length > 0 && (
+        <p className="cfg-alerta">{semEmpresa.length === 1 ? 'Um usuário cliente está' : `${semEmpresa.length} usuários clientes estão`} sem empresa ligada e não {semEmpresa.length === 1 ? 'vê' : 'veem'} nada no portal: {semEmpresa.map((p) => p.nome || p.email).join(', ')}.</p>
+      )}
+      <div className="cfg-filtros">
+        <input className="input" type="search" placeholder="Buscar por nome, e-mail ou empresa" value={busca} onChange={(e) => setBusca(e.target.value)} aria-label="Buscar usuário" />
+        <div className="chips-filtro" role="group" aria-label="Filtrar usuários">
+          {chips.map(([id, nome]) => (
+            <button key={id} type="button" className={'pill' + (filtro === id ? ' on' : '')} aria-pressed={filtro === id} onClick={() => setFiltro(id)}>{nome}</button>
+          ))}
+        </div>
       </div>
       {verComo && (
         <div className="ver-como-barra">
@@ -138,22 +198,19 @@ function Usuarios({ dados, eu, pode, avisar, verAtividades, verComo }) {
           {(dados.clientes || []).filter((c) => c.ativo !== false).map((c) => (
             <button key={c.id} type="button" className="pill" onClick={() => verComo('cliente:' + c.nome)}>Portal {c.nome}</button>
           ))}
-          <span className="note">ou clique em “Ver como” em cada usuário</span>
         </div>
       )}
       <div className="users">
         {lista.map((p) => (
           <LinhaUsuario key={p.id} p={p} dados={dados} online={dados.online.has(p.id)} admin={pode.admin} eu={eu} avisar={avisar} verAtividades={verAtividades} verComo={verComo} />
         ))}
+        {!lista.length && <p className="empty">Ninguém neste filtro.</p>}
       </div>
-      {pode.admin && (
-        <div className="note" style={{ background: 'var(--soft)', borderRadius: 16, padding: 14 }}>
-          <b>Para adicionar alguém:</b> no Supabase, vá em Authentication → Users → Add user → Create new user (e-mail, senha e
-          “Auto Confirm User”). A pessoa aparece aqui como <b>Campo</b>; depois é só trocar o tipo de acesso nesta lista.
-          <br />
-          {PAPEIS.map((r) => <span key={r.id} style={{ display: 'block', marginTop: 4 }}><b>{r.nome}:</b> {r.desc}</span>)}
-        </div>
-      )}
+      <div className="note cfg-ajuda">
+        <b>Para adicionar alguém:</b> no Supabase, vá em Authentication → Users → <b>Invite user</b> e coloque o e-mail da pessoa. Ela recebe o convite,
+        cria a senha e aparece aqui como <b>Campo</b>; depois é só trocar o tipo de acesso nesta lista.
+        {PAPEIS.map((r) => <span key={r.id} style={{ display: 'block', marginTop: 4 }}><b>{r.nome}:</b> {r.desc}</span>)}
+      </div>
     </section>
   );
 }
@@ -181,6 +238,12 @@ function LinhaUsuario({ p, dados, online, admin, eu, avisar, verAtividades, verC
           <span className="nm">{p.nome}{souEu ? ' (você)' : ''}</span>
         )}
         <span className="sub">{p.email}{admin && souEu ? ' · você' : ''}</span>
+        {(!p.ultimo_acesso || (p.papel === 'cliente' && !(p.cliente_grupo || '').trim())) && (
+          <span className="user-tags">
+            {!p.ultimo_acesso && <span className="badge yellow">nunca entrou</span>}
+            {p.papel === 'cliente' && !(p.cliente_grupo || '').trim() && <span className="badge red">sem empresa</span>}
+          </span>
+        )}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {admin ? (
@@ -225,68 +288,103 @@ function lerPrefs() {
   try { return JSON.parse(localStorage.getItem('eql-prefs') || '{}') || {}; } catch { return {}; }
 }
 
-// Frases do dia (aparecem para o campo e no Início): administradores cadastram
 // ---------- Clientes (Help, Ageplan…) ----------
-function Clientes({ dados, avisar, verComo }) {
+function Clientes({ dados, avisar, verComo, irVis }) {
   const [novo, setNovo] = useState('');
+  const [busca, setBusca] = useState('');
   const [editando, setEditando] = useState(null); // { id, nome }
   const falta = dados.faltando.has('clientes');
-  const lista = [...(dados.clientes || [])].sort((a, b) => (a.ativo === false) - (b.ativo === false) || a.nome.localeCompare(b.nome, 'pt-BR'));
-  const obras = (nome) => dados.demandas.filter((d) => (d.grupo || '').trim().toLowerCase() === nome.trim().toLowerCase()).length;
-  const acessos = (nome) => dados.perfis.filter((p) => p.papel === 'cliente' && (p.cliente_grupo || '').trim().toLowerCase() === nome.trim().toLowerCase()).length;
+  const igual = (a, b) => (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
+  const b = busca.trim().toLowerCase();
+  const lista = [...(dados.clientes || [])]
+    .filter((c) => !b || c.nome.toLowerCase().includes(b))
+    .sort((a, c) => (a.ativo === false) - (c.ativo === false) || a.nome.localeCompare(c.nome, 'pt-BR'));
+  const info = (c) => {
+    const ds = dados.demandas.filter((d) => igual(d.grupo, c.nome));
+    const obras = ds.filter((d) => d.empresa !== 'eko');
+    const ids = new Set(ds.map((d) => d.id));
+    const rels = (dados.relatorios || []).filter((r) => ids.has(r.demanda_id) && r.status !== 'rascunho');
+    const ultimo = rels.reduce((m, r) => (r.dia > m ? r.dia : m), '');
+    const pcfg = (dados.portal_config || []).find((x) => x.escopo === c.id);
+    return {
+      ativas: obras.filter((d) => !d.arquivada).length, concluidas: obras.filter((d) => d.arquivada).length,
+      pedidos: ds.filter((d) => d.empresa === 'eko' && !d.arquivada).length,
+      usuarios: dados.perfis.filter((p) => p.papel === 'cliente' && igual(p.cliente_grupo, c.nome)),
+      ultimo, personalizado: !!pcfg && Object.keys(pcfg.config || {}).length > 0, escondidas: (pcfg?.config?.ocultas || []).length,
+    };
+  };
   const adicionar = async () => { const n = await dados.criarCliente(novo); if (n) { setNovo(''); avisar(`Cliente “${n}” cadastrado.`); } };
   const renomear = async () => {
     const n = editando.nome.trim(); const c = lista.find((x) => x.id === editando.id);
     if (!n || n === c.nome) { setEditando(null); return; }
-    if (lista.some((x) => x.id !== c.id && x.nome.trim().toLowerCase() === n.toLowerCase())) { avisar(`Já existe um cliente “${n}”.`); return; }
+    if ((dados.clientes || []).some((x) => x.id !== c.id && x.nome.trim().toLowerCase() === n.toLowerCase())) { avisar(`Já existe um cliente “${n}”.`); return; }
     if (!window.confirm(`Renomear “${c.nome}” para “${n}”? Muda também nas obras, nos orçamentos em aberto e no acesso dos usuários desse cliente.`)) return;
     if (await dados.atualizarCliente(c.id, { nome: n })) { setEditando(null); avisar('Cliente renomeado em todo o sistema.'); }
   };
+  if (falta) return <section className="card"><p className="note">Para ter a lista de clientes, rode no Supabase o arquivo <b>16_clientes.sql</b>.</p></section>;
   return (
     <section className="card stack" aria-label="Clientes">
-      <div>
-        <h2 className="card-title">Clientes</h2>
-        <p className="note">Aparecem para escolher ao criar obras, pedidos da fábrica e orçamentos. Um nome novo usado em 2 obras entra aqui sozinho.</p>
+      <p className="note">Aparecem para escolher ao criar obras, pedidos da fábrica e orçamentos. Um nome novo usado em 2 obras entra aqui sozinho.</p>
+      <div className="cfg-filtros">
+        <input className="input" type="search" placeholder="Buscar cliente" value={busca} onChange={(e) => setBusca(e.target.value)} aria-label="Buscar cliente" />
+        <div className="row" style={{ flexWrap: 'nowrap', flex: 1 }}>
+          <input className="input" style={{ flex: 1 }} placeholder="Novo cliente (ex.: Radial)" maxLength={80} value={novo}
+            onChange={(e) => setNovo(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && novo.trim() && adicionar()} aria-label="Novo cliente" />
+          <button type="button" className="pill lime" disabled={!novo.trim()} onClick={adicionar}>Adicionar</button>
+        </div>
       </div>
-      {falta ? (
-        <p className="note">Para ter a lista de clientes, rode no Supabase o arquivo <b>16_clientes.sql</b>.</p>
-      ) : (
-        <>
-          <div className="row" style={{ flexWrap: 'nowrap' }}>
-            <input className="input" style={{ flex: 1 }} placeholder="Ex.: Radial" maxLength={80} value={novo}
-              onChange={(e) => setNovo(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && novo.trim() && adicionar()} aria-label="Novo cliente" />
-            <button type="button" className="pill lime" disabled={!novo.trim()} onClick={adicionar}>Adicionar</button>
-          </div>
-          <ul className="cli-lista">
-            {lista.map((c) => (
-              <li key={c.id} className={c.ativo === false ? 'off' : ''}>
+      <div className="cli-cards">
+        {lista.map((c) => {
+          const x = info(c);
+          return (
+            <article key={c.id} className={'cli-card' + (c.ativo === false ? ' off' : '')}>
+              <div className="cli-card-top">
                 {editando?.id === c.id ? (
                   <input className="input" autoFocus value={editando.nome} onChange={(e) => setEditando({ ...editando, nome: e.target.value })}
                     onKeyDown={(e) => { if (e.key === 'Enter') renomear(); if (e.key === 'Escape') setEditando(null); }} aria-label={`Novo nome de ${c.nome}`} />
-                ) : (
-                  <span className="cli-nome"><b>{c.nome}</b>{c.origem === 'automatico' && <small className="cli-auto">criado sozinho</small>}</span>
-                )}
-                <span className="note">{obras(c.nome)} {obras(c.nome) === 1 ? 'obra' : 'obras'}{acessos(c.nome) ? ` · ${acessos(c.nome)} no portal` : ''}</span>
-                <span className="cli-acoes">
-                  {editando?.id === c.id
-                    ? <><button type="button" className="link-btn" onClick={renomear}>Salvar</button><button type="button" className="link-btn" onClick={() => setEditando(null)}>Cancelar</button></>
-                    : <><button type="button" className="link-btn" onClick={() => setEditando({ id: c.id, nome: c.nome })}>Renomear</button>
-                      <button type="button" className="link-btn" onClick={() => dados.atualizarCliente(c.id, { ativo: c.ativo === false })}>{c.ativo === false ? 'Mostrar' : 'Esconder'}</button>
-                      {verComo && <button type="button" className="link-btn" onClick={() => verComo('cliente:' + c.nome)}>Ver portal</button>}</>}
+                ) : <b className="cli-card-nome">{c.nome}</b>}
+                <span className="cli-tags">
+                  {c.origem === 'automatico' && <span className="badge">criado sozinho</span>}
+                  {c.ativo === false && <span className="badge">escondido</span>}
+                  {x.personalizado && <span className="badge blue">portal personalizado</span>}
                 </span>
-              </li>
-            ))}
-            {!lista.length && <li className="note">Nenhum cliente cadastrado.</li>}
-          </ul>
-        </>
-      )}
+              </div>
+              <div className="cli-nums">
+                <span><b>{x.ativas}</b> {x.ativas === 1 ? 'obra ativa' : 'obras ativas'}</span>
+                <span><b>{x.concluidas}</b> {x.concluidas === 1 ? 'concluída' : 'concluídas'}</span>
+                {x.pedidos > 0 && <span><b>{x.pedidos}</b> {x.pedidos === 1 ? 'pedido' : 'pedidos'} na fábrica</span>}
+                <span>{x.ultimo ? <>último relatório <b>{new Date(x.ultimo + 'T12:00').toLocaleDateString('pt-BR')}</b></> : 'sem relatórios recentes'}</span>
+              </div>
+              <div className="cli-portal">
+                <span className="note">Portal:</span>
+                {x.usuarios.length ? x.usuarios.map((p) => <span key={p.id} className="chip small">{p.nome || p.email}</span>)
+                  : <span className="note">nenhum usuário com acesso</span>}
+                {x.escondidas > 0 && <span className="note">· {x.escondidas} {x.escondidas === 1 ? 'obra escondida' : 'obras escondidas'}</span>}
+              </div>
+              <div className="cli-acoes">
+                {editando?.id === c.id
+                  ? <><button type="button" className="link-btn" onClick={renomear}>Salvar</button><button type="button" className="link-btn" onClick={() => setEditando(null)}>Cancelar</button></>
+                  : <>
+                    <button type="button" className="pill" onClick={() => irVis(c.id)}>O que vê no portal</button>
+                    {verComo && <button type="button" className="pill ghost" onClick={() => verComo('cliente:' + c.nome)}>Ver portal</button>}
+                    <button type="button" className="link-btn" onClick={() => setEditando({ id: c.id, nome: c.nome })}>Renomear</button>
+                    <button type="button" className="link-btn" onClick={() => dados.atualizarCliente(c.id, { ativo: c.ativo === false })}>{c.ativo === false ? 'Mostrar na lista' : 'Esconder da lista'}</button>
+                  </>}
+              </div>
+            </article>
+          );
+        })}
+        {!lista.length && <p className="empty">Nenhum cliente {b ? 'com esse nome' : 'cadastrado'}.</p>}
+      </div>
     </section>
   );
 }
 
+// ---------- Frases do dia ----------
 function Frases({ dados }) {
   const [texto, setTexto] = useState('');
   const [aberto, setAberto] = useState(false);
+  const [editando, setEditando] = useState(null); // { id, texto }
   const lista = dados.frases || [];
   const ativas = lista.filter((f) => f.ativo !== false).map((f) => f.texto);
   const falta = dados.faltando.has('frases');
@@ -295,13 +393,24 @@ function Frases({ dados }) {
     if (t.length < 3) return;
     if (await dados.salvarFrase(t)) setTexto('');
   };
+  const salvarEdicao = async () => {
+    const t = editando.texto.trim();
+    if (t.length >= 3) await dados.editarFrase(editando.id, t);
+    setEditando(null);
+  };
+  const proximos = Array.from({ length: 7 }, (_, i) => addDias(hoje(), i));
   return (
     <section className="card stack" aria-label="Frases do dia">
-      <div>
-        <h2 className="card-title">Frases do dia</h2>
-        <p className="note">Aparecem embaixo do “Bom dia, fulano” — uma por dia, a mesma para todo mundo, e mudam à meia-noite.</p>
+      <p className="note">Aparecem embaixo do “Bom dia, fulano”: uma por dia, a mesma para todo mundo, e mudam à meia-noite.
+        {' '}{ativas.length ? `${ativas.length} ${ativas.length === 1 ? 'frase ativa' : 'frases ativas'}.` : `Sem frases suas: o app usa ${FRASES_PADRAO.length} prontas.`}</p>
+      <div className="frases-semana">
+        {proximos.map((d, i) => (
+          <div key={d} className={i === 0 ? 'hoje' : ''}>
+            <span>{i === 0 ? 'Hoje' : i === 1 ? 'Amanhã' : diaSemana(d) + ' ' + fmt(d)}</span>
+            <p>{mensagemDoDia(d, ativas)}</p>
+          </div>
+        ))}
       </div>
-      <div className="frase-hoje"><span>Hoje:</span> {mensagemDoDia(hoje(), ativas)}</div>
       {falta ? (
         <p className="note">Para cadastrar as suas frases, rode no Supabase o arquivo <b>11_painel_financeiro_e_campo.sql</b>. Enquanto isso, o app usa {FRASES_PADRAO.length} frases prontas.</p>
       ) : (
@@ -315,9 +424,16 @@ function Frases({ dados }) {
             <ul className="frases-lista">
               {lista.map((f) => (
                 <li key={f.id} className={f.ativo === false ? 'off' : ''}>
-                  <span>{f.texto}</span>
+                  {editando?.id === f.id ? (
+                    <input className="input" style={{ flex: 1 }} autoFocus maxLength={240} value={editando.texto} aria-label="Editar frase"
+                      onChange={(e) => setEditando({ ...editando, texto: e.target.value })}
+                      onKeyDown={(e) => { if (e.key === 'Enter') salvarEdicao(); if (e.key === 'Escape') setEditando(null); }} />
+                  ) : <span>{f.texto}</span>}
+                  {editando?.id === f.id
+                    ? <button type="button" className="link-btn" onClick={salvarEdicao}>Salvar</button>
+                    : <button type="button" className="link-btn" onClick={() => setEditando({ id: f.id, texto: f.texto })}>Editar</button>}
                   <button type="button" className="link-btn" onClick={() => dados.alternarFrase(f.id, f.ativo === false)}>{f.ativo === false ? 'Ativar' : 'Pausar'}</button>
-                  <button type="button" className="link-btn danger-text" onClick={() => dados.apagarFrase(f.id)}>Apagar</button>
+                  <button type="button" className="link-btn danger-text" onClick={() => window.confirm('Apagar esta frase?') && dados.apagarFrase(f.id)}>Apagar</button>
                 </li>
               ))}
             </ul>

@@ -57,7 +57,9 @@ export function PortalCliente({ eu, usuario, grupoComo, onSairComo }) {
     (p.relatorios || []).forEach((r) => { if (r.funcionario_id && !funcionarios.some((f) => f.id === r.funcionario_id)) funcionarios.push({ id: r.funcionario_id, nome: r.funcionario }); });
     // o visualizador de relatório usa o mesmo formato do resto do app
     const dadosRel = { demandas: obras, funcionarios, perfis: [], urlArquivo };
-    return { obras, porId, dadosRel, equipe: p.equipe || [], relatorios: p.relatorios || [] };
+    // regras do portal (Configurações → Visualizações); sem a atualização 21 tudo fica ligado, como antes
+    const cfg = { andamento: true, datas: true, equipe: true, funcao: true, futuro: true, relatorios: true, baixar: true, fabrica: false, ...(p.config || {}) };
+    return { obras, porId, dadosRel, equipe: p.equipe || [], relatorios: p.relatorios || [], fabrica: p.fabrica || [], cfg };
   }, [p]);
 
   const relAberto = partes[0] === 'relatorios' && d ? d.relatorios.find((r) => r.id === partes[1]) : null;
@@ -92,7 +94,7 @@ export function PortalCliente({ eu, usuario, grupoComo, onSairComo }) {
           )}
       </main>
 
-      {relAberto && <VerRelatorio r={relAberto} dados={d.dadosRel} onFechar={() => voltar('/inicio')} exportarRfi />}
+      {relAberto && <VerRelatorio r={relAberto} dados={d.dadosRel} onFechar={() => voltar('/inicio')} exportarRfi={d.cfg.baixar} semDownload={!d.cfg.baixar} />}
     </div>
   );
 }
@@ -122,7 +124,8 @@ function Inicio({ p, d, eu, ir }) {
         </div>
         <div className="pc-kpis">
           <div><b>{ativas.length}</b><span>em andamento</span></div>
-          <div><b>{relHoje.length}</b><span>{relHoje.length === 1 ? 'relatório hoje' : 'relatórios hoje'}</span></div>
+          {d.cfg.relatorios && <div><b>{relHoje.length}</b><span>{relHoje.length === 1 ? 'relatório hoje' : 'relatórios hoje'}</span></div>}
+          {d.fabrica.length > 0 && <div><b>{d.fabrica.filter((x) => !x.arquivada).length}</b><span>{d.fabrica.filter((x) => !x.arquivada).length === 1 ? 'pedido na fábrica' : 'pedidos na fábrica'}</span></div>}
           <div><b>{concluidas.length}</b><span>{concluidas.length === 1 ? 'concluída' : 'concluídas'}</span></div>
         </div>
       </header>
@@ -141,15 +144,15 @@ function Inicio({ p, d, eu, ir }) {
         </section>
       )}
 
-      <div className="pc-colunas">
-        <section className="pc-sec">
+      <div className={'pc-colunas' + (d.cfg.relatorios ? '' : ' so-obras')}>
+        {d.cfg.relatorios && <section className="pc-sec">
           <h2 className="pc-h2">Últimos relatórios</h2>
           {d.relatorios.length === 0 && <p className="card note">Os relatórios das suas obras (início do dia, fim do dia, limpeza…) aparecem aqui assim que a equipe enviar.</p>}
           <div className="pc-feed">
             {d.relatorios.slice(0, qtd).map((r) => <CartaoRel key={r.id} r={r} obra={d.porId[r.demanda_id]} onAbrir={() => ir('/relatorios/' + r.id)} />)}
           </div>
           {d.relatorios.length > qtd && <button type="button" className="pill pc-mais" onClick={() => setQtd(qtd + 12)}>Mostrar mais relatórios</button>}
-        </section>
+        </section>}
 
         <section className="pc-sec">
           <h2 className="pc-h2">Suas obras</h2>
@@ -163,6 +166,12 @@ function Inicio({ p, d, eu, ir }) {
                 {verConcluidas ? 'Esconder concluídas' : `Ver ${concluidas.length} ${concluidas.length === 1 ? 'obra concluída' : 'obras concluídas'}`}
               </button>
               {verConcluidas && <div className="pc-obras">{concluidas.map((o) => <CartaoObra key={o.id} o={o} d={d} onAbrir={() => ir('/obras/' + o.id)} />)}</div>}
+            </>
+          )}
+          {d.fabrica.length > 0 && (
+            <>
+              <h2 className="pc-h2" style={{ marginTop: 18 }}>Pedidos da fábrica</h2>
+              <div className="pc-obras">{d.fabrica.map((x) => <CartaoPedido key={x.id} x={x} />)}</div>
             </>
           )}
         </section>
@@ -192,14 +201,16 @@ function PaginaObra({ o, d, ir, voltar }) {
             {o.inicio ? `Início ${fmt(o.inicio)}` : ''}{o.inicio && o.entrega ? ' · ' : ''}{o.entrega ? `${f.cls === 'ok' ? 'Entrega' : 'Previsão de entrega'} ${fmt(o.entrega)}` : ''}
           </p>
         </div>
-        <div className="pc-prog" aria-label={`Andamento ${pct}%`}>
-          <div className="pc-prog-num"><b>{pct}%</b><span>concluído</span></div>
-          <div className="pc-barra"><i style={{ width: pct + '%' }} /></div>
-        </div>
+        {o.percentual != null && (
+          <div className="pc-prog" aria-label={`Andamento ${pct}%`}>
+            <div className="pc-prog-num"><b>{pct}%</b><span>concluído</span></div>
+            <div className="pc-barra"><i style={{ width: pct + '%' }} /></div>
+          </div>
+        )}
       </section>
 
-      <div className="pc-colunas obra">
-        <section className="pc-sec">
+      <div className={'pc-colunas obra' + (d.cfg.relatorios && d.cfg.equipe ? '' : ' so-obras')}>
+        {d.cfg.relatorios && <section className="pc-sec">
           <h2 className="pc-h2">Relatórios da obra <small>{rels.length}</small></h2>
           {!rels.length && <p className="card note">Nenhum relatório enviado ainda para esta obra.</p>}
           {porDia.map(([dia, rs]) => (
@@ -208,9 +219,9 @@ function PaginaObra({ o, d, ir, voltar }) {
               <div className="pc-feed">{rs.map((r) => <CartaoRel key={r.id} r={r} onAbrir={() => ir('/relatorios/' + r.id)} />)}</div>
             </div>
           ))}
-        </section>
+        </section>}
 
-        <aside className="pc-sec">
+        {d.cfg.equipe && <aside className="pc-sec">
           <h2 className="pc-h2">Equipe</h2>
           <div className="card stack pc-equipe">
             {proximos.length ? proximos.map((dia) => (
@@ -218,7 +229,7 @@ function PaginaObra({ o, d, ir, voltar }) {
                 <span className="pc-eq-data">{dia === h ? 'Hoje' : dia === addDias(h, 1) ? 'Amanhã' : `${diaSemana(dia)} ${fmt(dia)}`}</span>
                 <span className="pc-pessoas">{eq.filter((e) => e.dia === dia).map((e) => <Pessoa key={e.funcionario_id} e={e} />)}</span>
               </div>
-            )) : <p className="note">Sem equipe programada para os próximos dias.</p>}
+            )) : <p className="note">{d.cfg.futuro ? 'Sem equipe programada para os próximos dias.' : 'A programação da equipe não aparece neste portal.'}</p>}
             {ultimos.length > 0 && (
               <div className="pc-eq-dia passado">
                 <span className="pc-eq-data">Já trabalharam aqui</span>
@@ -226,7 +237,7 @@ function PaginaObra({ o, d, ir, voltar }) {
               </div>
             )}
           </div>
-        </aside>
+        </aside>}
       </div>
     </>
   );
@@ -240,10 +251,10 @@ function CartaoObra({ o, d, onAbrir }) {
   return (
     <button type="button" className="card pc-obra" onClick={onAbrir}>
       <div className="pc-obra-l1"><b>{o.nome}</b><span className={'pc-fase ' + f.cls}>{f.nome}</span></div>
-      <div className="pc-barra fina"><i style={{ width: pct + '%' }} /></div>
+      {o.percentual != null && <div className="pc-barra fina"><i style={{ width: pct + '%' }} /></div>}
       <div className="pc-obra-l2">
-        <span>{pct}%{o.entrega ? ` · ${f.cls === 'ok' ? 'entregue' : 'previsão'} ${fmt(o.entrega)}` : ''}</span>
-        <span>{hojeEq.length ? `${hojeEq.length} ${hojeEq.length === 1 ? 'pessoa' : 'pessoas'} hoje` : ultimo ? `último relatório ${fmt(ultimo.dia)}` : 'sem relatórios'}</span>
+        <span>{[o.percentual != null ? `${pct}%` : null, o.entrega ? `${f.cls === 'ok' ? 'entregue' : 'previsão'} ${fmt(o.entrega)}` : null].filter(Boolean).join(' · ')}</span>
+        <span>{hojeEq.length ? `${hojeEq.length} ${hojeEq.length === 1 ? 'pessoa' : 'pessoas'} hoje` : ultimo ? `último relatório ${fmt(ultimo.dia)}` : d.cfg.relatorios ? 'sem relatórios' : ''}</span>
       </div>
     </button>
   );
@@ -273,3 +284,24 @@ const Pessoa = ({ e }) => (
     <i>{(e.nome || '?').split(/\s+/).map((x) => x[0]).slice(0, 2).join('').toUpperCase()}</i>{e.nome}{e.funcao ? <small> · {e.funcao}</small> : null}
   </span>
 );
+
+// pedido da fábrica (EQL Eko): produto, quanto já está pronto e prazo — sem valores
+function CartaoPedido({ x }) {
+  const total = Number(x.qtd_total) || 0;
+  const pronto = Math.min(total, Number(x.qtd_produzida) || 0);
+  const pct = total ? Math.round((pronto / total) * 100) : 0;
+  const un = x.unidade || 'un.';
+  const fase = x.arquivada ? { nome: 'Entregue', cls: 'ok' } : x.fase === 'estoque' || (total && pronto >= total) ? { nome: 'Pronto', cls: 'ok' }
+    : x.fase === 'orcamento' ? { nome: 'Planejado', cls: 'plan' } : { nome: 'Em produção', cls: 'exec' };
+  return (
+    <div className="card pc-obra pc-pedido">
+      <div className="pc-obra-l1"><b>{x.produto || 'Pedido'}</b><span className={'pc-fase ' + fase.cls}>{fase.nome}</span></div>
+      {(x.especificacao || x.descricao) && <span className="note">{[x.especificacao, x.descricao].filter(Boolean).join(' · ')}</span>}
+      {total > 0 && <div className="pc-barra fina"><i style={{ width: pct + '%' }} /></div>}
+      <div className="pc-obra-l2">
+        <span>{total ? `${pronto.toLocaleString('pt-BR')} de ${total.toLocaleString('pt-BR')} ${un} prontos` : 'quantidade a definir'}</span>
+        <span>{x.entrega ? `prazo ${fmt(x.entrega)}` : ''}</span>
+      </div>
+    </div>
+  );
+}

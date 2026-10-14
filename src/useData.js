@@ -25,6 +25,7 @@ const TABELAS = {
   demanda_adicionais: ['dia', true, false], // só administradores (com valor)
   adicionais_publicos: ['dia', true, false], // gerente: os adicionais sem o valor
   veiculo_fora: ['dia', true, true],
+  portal_config: ['escopo', true, false], // só administradores: o que cada cliente vê no portal
 };
 const SEM_TEMPO_REAL = ['perfis_publicos', 'adicionais_publicos'];
 const NOMES = Object.keys(TABELAS);
@@ -319,6 +320,20 @@ export function useData(avisar, userId) {
   const salvarCamposRelatorio = (id, campos) => atualizar('relatorios', id, { campos });
   const salvarFrase = (texto) => inserir('frases', { texto, ativo: true }, false);
   const alternarFrase = (id, ativo) => atualizar('frases', id, { ativo });
+  const editarFrase = (id, texto) => atualizar('frases', id, { texto });
+  // o que cada cliente vê no portal: escopo '*' = todos; id do cliente = só ele
+  const salvarPortalConfig = async (escopo, config) => {
+    setTabela('portal_config', (xs) => (xs.some((x) => x.escopo === escopo) ? xs.map((x) => (x.escopo === escopo ? { ...x, config } : x)) : [...xs, { escopo, config }]));
+    const { error } = await supabase.from('portal_config').upsert({ escopo, config }, { onConflict: 'escopo' });
+    if (!falhou(error, 'portal_config')) recarregar('portal_config');
+    return !error;
+  };
+  const apagarPortalConfig = async (escopo) => {
+    setTabela('portal_config', (xs) => xs.filter((x) => x.escopo !== escopo));
+    const { error } = await supabase.from('portal_config').delete().eq('escopo', escopo);
+    falhou(error, 'portal_config');
+    return !error;
+  };
   const apagarFrase = (id) => apagar('frases', id);
   const apagarRelatorio = async (r) => {
     await apagar('relatorios', r.id);
@@ -338,7 +353,7 @@ export function useData(avisar, userId) {
     definirCusto, apagarCusto, salvarFinanceiro, lancarCusto, apagarLancamento,
     lancarRecebimento, apagarRecebimento, incluirAdicional, atualizarAdicional, apagarAdicional,
     marcarVeiculoFora, marcarVeiculoForaPeriodo, removerVeiculoFora,
-    enviarArquivo, urlArquivo, salvarRelatorio, apagarRelatorio, salvarFrase, alternarFrase, apagarFrase, salvarCamposRelatorio,
+    enviarArquivo, urlArquivo, salvarRelatorio, apagarRelatorio, salvarFrase, alternarFrase, editarFrase, apagarFrase, salvarCamposRelatorio, salvarPortalConfig, apagarPortalConfig,
     salvarItemEpi, movimentarEpi, atualizarMovimentoEpi, apagarMovimentoEpi,
     atualizarPerfil, enviarFoto,
     salvarDemanda, excluirDemanda, criarCliente, atualizarCliente,
@@ -357,7 +372,7 @@ function limiteDias() {
 
 // recursos que dependem de arquivos SQL opcionais: não geram aviso ao carregar
 const OPCIONAIS = ['custos_funcionarios', 'financeiro_demandas', 'custos_lancamentos', 'relatorios', 'frases', 'epi_itens', 'epi_movimentos', 'orcamentos', 'orcamento_parametros', 'clientes', 'perfis_publicos',
-  'demanda_recebimentos', 'demanda_adicionais', 'adicionais_publicos', 'veiculo_fora'];
+  'demanda_recebimentos', 'demanda_adicionais', 'adicionais_publicos', 'veiculo_fora', 'portal_config'];
 
 const CAMPOS_DEMANDA = ['empresa', 'grupo', 'nome', 'descricao', 'fase', 'percentual', 'inicio', 'entrega', 'pagamento',
   'qtd_total', 'qtd_produzida', 'unidade', 'arquivada', 'produto', 'especificacao'];

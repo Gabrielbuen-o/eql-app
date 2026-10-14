@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { faseNome, fmt, papelNome, supabase } from './lib.js';
 import { Avatar } from './Avatar.jsx';
+import { mudancasPortal } from './portalRegras.js';
 
 // Registro de atividades (só administradores): quem fez o quê e quando.
 const TIPOS = [
@@ -11,6 +12,7 @@ const TIPOS = [
   { id: 'frotas', nome: 'Veículos', tabelas: ['veiculos'] },
   { id: 'custos', nome: 'Valores, custos e recebimentos', tabelas: ['financeiro_demandas', 'custos_lancamentos', 'demanda_recebimentos', 'demanda_adicionais'] },
   { id: 'usuarios', nome: 'Usuários', tabelas: ['perfis'] },
+  { id: 'config', nome: 'Clientes e portal', tabelas: ['clientes', 'portal_config'] },
 ];
 
 const CAMPOS = {
@@ -33,6 +35,7 @@ function verbo(a) {
   if (t === 'ausencias') return { criou: 'marcou', apagou: 'desmarcou', alterou: 'alterou' }[x];
   if (t === 'financeiro_demandas') return { criou: 'definiu o valor da obra', apagou: 'apagou o valor da obra', alterou: 'alterou o valor da obra' }[x];
   if (t === 'custos_lancamentos') return { criou: 'lançou custo em', apagou: 'apagou o custo de', alterou: 'alterou o custo de' }[x];
+  if (t === 'portal_config') return { criou: 'personalizou o que vê o', apagou: 'voltou ao padrão o', alterou: 'mudou o que vê o' }[x];
   if (t === 'veiculo_fora') return { criou: 'tirou de obra o veículo', apagou: 'voltou para a agenda o veículo', alterou: 'mudou o motivo do veículo' }[x];
   if (t === 'demanda_recebimentos') return { criou: 'lançou entrada em', apagou: 'apagou a entrada de', alterou: 'alterou a entrada de' }[x];
   if (t === 'demanda_adicionais') return { criou: 'incluiu adicional em', apagou: 'tirou o adicional de', alterou: 'alterou o adicional de' }[x];
@@ -132,7 +135,9 @@ export function Atividades({ dados, filtroUsuario, setFiltroUsuario }) {
           <span className="group-name" style={{ textTransform: 'none', letterSpacing: 0, fontSize: 12 }}>{g.chave}</span>
           {g.itens.map((a) => {
             const p = perfil[a.usuario_id];
-            const mud = Object.entries(a.mudancas || {}).filter(([k]) => !OCULTAR.has(k));
+            const mud = a.tabela === 'portal_config'
+              ? mudancasPortal(a.mudancas?.config?.[0], a.mudancas?.config?.[1]).map((m) => [m.nome, [m.antes, m.depois]])
+              : Object.entries(a.mudancas || {}).filter(([k]) => !OCULTAR.has(k));
             return (
               <div key={a.id} className={'log-item' + (a.desfeita_em ? ' desfeita' : '')}>
                 <Avatar perfil={p} nome="?" />
@@ -170,6 +175,7 @@ export function Atividades({ dados, filtroUsuario, setFiltroUsuario }) {
 function Desfazer({ a, grupo, perfil, onFeito }) {
   const [etapa, setEtapa] = useState('nada'); // nada | confirmar | enviando | conflito | erro
   const [msg, setMsg] = useState('');
+  if (a.tabela === 'portal_config') return null; // configurações do portal: muda de novo na aba Visualizações
   if (a.desfeita_em) {
     const quem = perfil[a.desfeita_por];
     return <span className="log-desfeita">Desfeito{quem ? ` por ${quem.nome?.split(' ')[0] || quem.email}` : ''} · {new Date(a.desfeita_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>;

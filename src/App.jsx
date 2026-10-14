@@ -287,7 +287,7 @@ function Painel({ usuario }) {
           ) : atual.id === 'financeiro' ? (
             <Resultados dados={dados} porDemanda={custos.porDemanda} />
           ) : atual.id === 'config' ? (
-            <Configuracoes dados={dados} eu={eu} usuario={usuario} pode={pode} salvarPrefs={salvarPrefs} avisar={avisar} verComo={papelReal === 'admin' && !como ? verComo : null} />
+            <Configuracoes dados={dados} eu={eu} usuario={usuario} pode={pode} salvarPrefs={salvarPrefs} avisar={avisar} verComo={papelReal === 'admin' && !como ? verComo : null} resto={resto} irSub={irSub} />
           ) : (
             <>
               <header className="head"><h1>{atual.nome}</h1></header>
