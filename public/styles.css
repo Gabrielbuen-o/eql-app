@@ -1816,3 +1816,4 @@ html, body { overscroll-behavior-y: none; } /* o do navegador fica desligado: us
 .pc-colunas.so-obras { grid-template-columns: 1fr; }
 .pc-pedido { cursor: default; }
 .cfg-abas { scroll-margin-top: 84px; }
+.pc-tipo { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--brand-text); margin-bottom: -6px; }

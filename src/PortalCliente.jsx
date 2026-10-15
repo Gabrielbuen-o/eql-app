@@ -17,6 +17,7 @@ const faseDe = (o) => (o.arquivada ? { nome: 'Concluída', cls: 'ok' } : FASE[o.
 const urlArquivo = (c) => (c ? supabase.storage.from('relatorios').getPublicUrl(c).data.publicUrl : '');
 const dataBonita = (d) => new Date(d + 'T12:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 const primeiro = (s) => (s || '').trim().split(/\s+/)[0];
+const EMPRESA_PORTAL = { engenharia: 'Engenharia', impermeabilizacao: 'Impermeabilização' };
 
 export function PortalCliente({ eu, usuario, grupoComo, onSairComo }) {
   const [p, setP] = useState(null);
@@ -101,8 +102,19 @@ export function PortalCliente({ eu, usuario, grupoComo, onSairComo }) {
 
 function Inicio({ p, d, eu, ir }) {
   const h = hoje();
-  const ativas = d.obras.filter((o) => !o.arquivada && o.fase !== 'entrega');
-  const concluidas = d.obras.filter((o) => o.arquivada || o.fase === 'entrega');
+  const prontoPedido = (x) => x.arquivada || x.fase === 'estoque' || (Number(x.qtd_total) > 0 && Number(x.qtd_produzida) >= Number(x.qtd_total));
+  // "Suas demandas": obras (Engenharia, Impermeabilização) e produções da fábrica juntas
+  const ativas = [
+    ...d.obras.filter((o) => !o.arquivada && o.fase !== 'entrega').map((o) => ({ tipo: 'obra', o })),
+    ...d.fabrica.filter((x) => !prontoPedido(x)).map((x) => ({ tipo: 'producao', x })),
+  ];
+  const concluidas = [
+    ...d.obras.filter((o) => o.arquivada || o.fase === 'entrega').map((o) => ({ tipo: 'obra', o })),
+    ...d.fabrica.filter(prontoPedido).map((x) => ({ tipo: 'producao', x })),
+  ];
+  const cartao = (it) => (it.tipo === 'obra'
+    ? <CartaoObra key={it.o.id} o={it.o} d={d} onAbrir={() => ir('/obras/' + it.o.id)} />
+    : <CartaoPedido key={it.x.id} x={it.x} />);
   const equipeHoje = d.equipe.filter((e) => e.dia === h);
   const obrasHoje = [...new Set(equipeHoje.map((e) => e.demanda_id))].map((id) => d.porId[id]).filter(Boolean);
   const relHoje = d.relatorios.filter((r) => r.dia === h);
@@ -115,7 +127,7 @@ function Inicio({ p, d, eu, ir }) {
       <header className="hero pc-hero">
         <div className="hero-txt">
           <p className="hero-data">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-          <h1>{saudacao()}{nome ? `, ${nome}` : ''}.</h1>
+          <h1>{saudacao()}, {p.grupo || nome}.</h1>
           <p className="hero-linha">
             {obrasHoje.length
               ? <>Hoje a EQL está em <b>{obrasHoje.length} {obrasHoje.length === 1 ? 'obra' : 'obras'}</b> da {p.grupo}.</>
@@ -125,7 +137,6 @@ function Inicio({ p, d, eu, ir }) {
         <div className="pc-kpis">
           <div><b>{ativas.length}</b><span>em andamento</span></div>
           {d.cfg.relatorios && <div><b>{relHoje.length}</b><span>{relHoje.length === 1 ? 'relatório hoje' : 'relatórios hoje'}</span></div>}
-          {d.fabrica.length > 0 && <div><b>{d.fabrica.filter((x) => !x.arquivada).length}</b><span>{d.fabrica.filter((x) => !x.arquivada).length === 1 ? 'pedido na fábrica' : 'pedidos na fábrica'}</span></div>}
           <div><b>{concluidas.length}</b><span>{concluidas.length === 1 ? 'concluída' : 'concluídas'}</span></div>
         </div>
       </header>
@@ -155,23 +166,17 @@ function Inicio({ p, d, eu, ir }) {
         </section>}
 
         <section className="pc-sec">
-          <h2 className="pc-h2">Suas obras</h2>
+          <h2 className="pc-h2">Suas demandas</h2>
           <div className="pc-obras">
-            {ativas.map((o) => <CartaoObra key={o.id} o={o} d={d} onAbrir={() => ir('/obras/' + o.id)} />)}
-            {!ativas.length && <p className="card note">Nenhuma obra em andamento no momento.</p>}
+            {ativas.map(cartao)}
+            {!ativas.length && <p className="card note">Nenhuma demanda em andamento no momento.</p>}
           </div>
           {concluidas.length > 0 && (
             <>
               <button type="button" className="link-btn pc-mais" onClick={() => setVerConcluidas(!verConcluidas)}>
-                {verConcluidas ? 'Esconder concluídas' : `Ver ${concluidas.length} ${concluidas.length === 1 ? 'obra concluída' : 'obras concluídas'}`}
+                {verConcluidas ? 'Esconder concluídas' : `Ver ${concluidas.length} ${concluidas.length === 1 ? 'demanda concluída' : 'demandas concluídas'}`}
               </button>
-              {verConcluidas && <div className="pc-obras">{concluidas.map((o) => <CartaoObra key={o.id} o={o} d={d} onAbrir={() => ir('/obras/' + o.id)} />)}</div>}
-            </>
-          )}
-          {d.fabrica.length > 0 && (
-            <>
-              <h2 className="pc-h2" style={{ marginTop: 18 }}>Pedidos da fábrica</h2>
-              <div className="pc-obras">{d.fabrica.map((x) => <CartaoPedido key={x.id} x={x} />)}</div>
+              {verConcluidas && <div className="pc-obras">{concluidas.map(cartao)}</div>}
             </>
           )}
         </section>
@@ -250,6 +255,7 @@ function CartaoObra({ o, d, onAbrir }) {
   const hojeEq = d.equipe.filter((e) => e.demanda_id === o.id && e.dia === hoje());
   return (
     <button type="button" className="card pc-obra" onClick={onAbrir}>
+      <span className="pc-tipo">Obra · {EMPRESA_PORTAL[o.empresa] || 'EQL'}</span>
       <div className="pc-obra-l1"><b>{o.nome}</b><span className={'pc-fase ' + f.cls}>{f.nome}</span></div>
       {o.percentual != null && <div className="pc-barra fina"><i style={{ width: pct + '%' }} /></div>}
       <div className="pc-obra-l2">
@@ -295,7 +301,8 @@ function CartaoPedido({ x }) {
     : x.fase === 'orcamento' ? { nome: 'Planejado', cls: 'plan' } : { nome: 'Em produção', cls: 'exec' };
   return (
     <div className="card pc-obra pc-pedido">
-      <div className="pc-obra-l1"><b>{x.produto || 'Pedido'}</b><span className={'pc-fase ' + fase.cls}>{fase.nome}</span></div>
+      <span className="pc-tipo">Produção · EQL Eko</span>
+      <div className="pc-obra-l1"><b>{x.produto || 'Pedido'}{total ? ` · ${total.toLocaleString('pt-BR')} ${un}` : ''}</b><span className={'pc-fase ' + fase.cls}>{fase.nome}</span></div>
       {(x.especificacao || x.descricao) && <span className="note">{[x.especificacao, x.descricao].filter(Boolean).join(' · ')}</span>}
       {total > 0 && <div className="pc-barra fina"><i style={{ width: pct + '%' }} /></div>}
       <div className="pc-obra-l2">
