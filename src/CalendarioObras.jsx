@@ -84,7 +84,7 @@ export function CalendarioObras({ dados, tv, setTv, avisar, pode }) {
 
       {aberto && (
         <VerRelatorio r={aberto} dados={dados} onFechar={() => setAberto(null)}
-          onApagar={pode.gestao ? (r) => dados.apagarRelatorio(r) : null}
+          onApagar={pode.admin ? (r) => dados.apagarRelatorio(r) : null} pode={pode}
           exportarRfi salvarCampos={pode.gestao ? dados.salvarCamposRelatorio : null} />
       )}
     </>

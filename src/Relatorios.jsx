@@ -98,6 +98,24 @@ export function Relatorios({ dados, pode, abertoId = null, irSub }) {
         </div>
       </header>
 
+      {/* pedidos de exclusão: o administrador vê os pendentes; o gerente vê os dele */}
+      {(() => {
+        const pend = (dados.relatorio_exclusoes || []).filter((x) => x.status === 'pendente');
+        if (!pend.length) return null;
+        const nome = (id) => dados.perfis.find((p) => p.id === id)?.nome || 'alguém';
+        return (
+          <section className="card rel-pedidos" aria-label="Pedidos de exclusão">
+            <b>{pode.admin ? `${pend.length} ${pend.length === 1 ? 'pedido' : 'pedidos'} de exclusão esperando você` : `${pend.length} ${pend.length === 1 ? 'pedido seu' : 'pedidos seus'} de exclusão esperando um administrador`}</b>
+            {pend.map((x) => (
+              <div key={x.id} className="rel-pedido-linha">
+                <span>{x.rotulo || 'Relatório'}{pode.admin ? ` · pedido por ${nome(x.pedido_por)}` : ''} · “{x.motivo}”</span>
+                {relatorios.some((r) => r.id === x.relatorio_id) && <button type="button" className="pill" onClick={() => irSub?.(x.relatorio_id)}>{pode.admin ? 'Ver e decidir' : 'Ver'}</button>}
+              </div>
+            ))}
+          </section>
+        );
+      })()}
+
       {dados.faltando.has('relatorios') && (
         <section className="card aviso-banco" role="status">
           <strong>Falta liberar os relatórios no banco.</strong>
@@ -212,7 +230,7 @@ export function Relatorios({ dados, pode, abertoId = null, irSub }) {
       )}
       {aberto && (
         <VerRelatorio r={aberto} dados={dados} onFechar={() => setAberto(null)}
-          onApagar={pode.gestao ? (r) => dados.apagarRelatorio(r) : null}
+          onApagar={pode.admin ? (r) => dados.apagarRelatorio(r) : null} pode={pode}
           exportarRfi salvarCampos={pode.gestao ? dados.salvarCamposRelatorio : null} />
       )}
     </>

@@ -26,6 +26,7 @@ const TABELAS = {
   adicionais_publicos: ['dia', true, false], // gerente: os adicionais sem o valor
   veiculo_fora: ['dia', true, true],
   portal_config: ['escopo', true, false], // só administradores: o que cada cliente vê no portal
+  relatorio_exclusoes: ['pedido_em', false, false], // pedidos de exclusão de relatório (gerente pede, administrador decide)
 };
 const SEM_TEMPO_REAL = ['perfis_publicos', 'adicionais_publicos'];
 const NOMES = Object.keys(TABELAS);
@@ -318,6 +319,16 @@ export function useData(avisar, userId) {
   const atualizarCliente = (id, campos) => atualizar('clientes', id, campos).then((ok) => { if (ok && campos.nome) { recarregar('demandas'); recarregar('perfis'); recarregar('orcamentos'); } return ok; });
   // cabeçalho do relatório oficial (RFI): endereço, ID do site…
   const salvarCamposRelatorio = (id, campos) => atualizar('relatorios', id, { campos });
+  // administrador e gerente: corrigir obra, dia, quem enviou, observação, fotos, concluir
+  const atualizarRelatorio = (id, campos) => atualizar('relatorios', id, campos);
+  // excluir relatório: o gerente pede, o administrador aprova (apaga) ou recusa
+  const pedirExclusao = (r, motivo, rotulo) => inserir('relatorio_exclusoes', { relatorio_id: r.id, motivo, rotulo, pedido_por: userId, status: 'pendente' }, false);
+  const decidirExclusao = async (pedido, aprovar, resposta = null) => {
+    const ok = await atualizar('relatorio_exclusoes', pedido.id, { status: aprovar ? 'aprovado' : 'recusado', resposta });
+    if (ok && aprovar) { const r = dbRef.current.relatorios.find((x) => x.id === pedido.relatorio_id); if (r) await apagarRelatorio(r); }
+    recarregar('relatorio_exclusoes');
+    return ok;
+  };
   const salvarFrase = (texto) => inserir('frases', { texto, ativo: true }, false);
   const alternarFrase = (id, ativo) => atualizar('frases', id, { ativo });
   const editarFrase = (id, texto) => atualizar('frases', id, { texto });
@@ -353,7 +364,7 @@ export function useData(avisar, userId) {
     definirCusto, apagarCusto, salvarFinanceiro, lancarCusto, apagarLancamento,
     lancarRecebimento, apagarRecebimento, incluirAdicional, atualizarAdicional, apagarAdicional,
     marcarVeiculoFora, marcarVeiculoForaPeriodo, removerVeiculoFora,
-    enviarArquivo, urlArquivo, salvarRelatorio, apagarRelatorio, salvarFrase, alternarFrase, editarFrase, apagarFrase, salvarCamposRelatorio, salvarPortalConfig, apagarPortalConfig,
+    enviarArquivo, urlArquivo, salvarRelatorio, apagarRelatorio, salvarFrase, alternarFrase, editarFrase, apagarFrase, salvarCamposRelatorio, salvarPortalConfig, apagarPortalConfig, atualizarRelatorio, pedirExclusao, decidirExclusao,
     salvarItemEpi, movimentarEpi, atualizarMovimentoEpi, apagarMovimentoEpi,
     atualizarPerfil, enviarFoto,
     salvarDemanda, excluirDemanda, criarCliente, atualizarCliente,
@@ -372,7 +383,7 @@ function limiteDias() {
 
 // recursos que dependem de arquivos SQL opcionais: não geram aviso ao carregar
 const OPCIONAIS = ['custos_funcionarios', 'financeiro_demandas', 'custos_lancamentos', 'relatorios', 'frases', 'epi_itens', 'epi_movimentos', 'orcamentos', 'orcamento_parametros', 'clientes', 'perfis_publicos',
-  'demanda_recebimentos', 'demanda_adicionais', 'adicionais_publicos', 'veiculo_fora', 'portal_config'];
+  'demanda_recebimentos', 'demanda_adicionais', 'adicionais_publicos', 'veiculo_fora', 'portal_config', 'relatorio_exclusoes'];
 
 const CAMPOS_DEMANDA = ['empresa', 'grupo', 'nome', 'descricao', 'fase', 'percentual', 'inicio', 'entrega', 'pagamento',
   'qtd_total', 'qtd_produzida', 'unidade', 'arquivada', 'produto', 'especificacao'];

@@ -808,7 +808,12 @@ async function entregar(arquivos, nomeZip) {
 }
 
 // Visualizador de um relatório (usado no campo e na visão dos administradores)
-export function VerRelatorio({ r, dados, onFechar, onApagar, exportarRfi = false, salvarCampos = null, semDownload = false }) {
+export function VerRelatorio({ r: rInicial, dados, onFechar, onApagar, exportarRfi = false, salvarCampos = null, semDownload = false, pode = null }) {
+  // sempre a versão mais nova do relatório (editar, tirar foto e concluir atualizam na hora)
+  const r = (dados.relatorios || []).find((x) => x.id === rInicial.id) || rInicial;
+  const podeEditar = !!pode?.gestao && !!dados.atualizarRelatorio; // administrador e gerente
+  const pedeExclusao = podeEditar && !onApagar && !!dados.pedirExclusao; // gerente: exclui só com aprovação
+  const [editar, setEditar] = useState(false);
   const [rfiAberto, setRfiAberto] = useState(false);
   const [foco, setFoco] = useState(null);
   const [confirmar, setConfirmar] = useState(false);
@@ -931,6 +936,10 @@ export function VerRelatorio({ r, dados, onFechar, onApagar, exportarRfi = false
             </div>
           </div>
         ))}
+        {podeEditar && (
+          <ControleRelatorio r={r} dados={dados} editar={editar} setEditar={setEditar} admin={!!onApagar} pedeExclusao={pedeExclusao}
+            onExcluido={onFechar} />
+        )}
         {onApagar && (
           <div className="rel-acoes">
             {confirmar ? (
@@ -956,12 +965,121 @@ export function VerRelatorio({ r, dados, onFechar, onApagar, exportarRfi = false
             {/* o app não dá zoom; a foto aberta sozinha dá (pinça) */}
             <a className="pill" href={dados.urlArquivo(fotos[foco].caminho)} target="_blank" rel="noreferrer">Ampliar</a>
             {!semDownload && <button type="button" className="pill" disabled={!!baixando} onClick={() => baixar([fotos[foco]])}>{baixando || 'Baixar'}</button>}
+            {podeEditar && (
+              <button type="button" className="pill" onClick={async () => {
+                if (!window.confirm('Tirar esta foto do relatório? Ela deixa de aparecer no relatório, no portal e nos PDFs.')) return;
+                const tirada = fotos[foco];
+                if (await dados.atualizarRelatorio(r.id, { arquivos: (r.arquivos || []).filter((a) => a.caminho !== tirada.caminho) })) setFoco(null);
+              }}>Tirar do relatório</button>
+            )}
             <button type="button" className="pill" onClick={() => setFoco(null)}>Fechar</button>
           </div>
         </div>
       )}
     </div>,
     document.body,
+  );
+}
+
+// Administrador e gerente: editar informações, concluir um relatório em andamento e excluir.
+// Excluir: o administrador exclui na hora; o gerente pede e um administrador aprova ou recusa.
+function ControleRelatorio({ r, dados, editar, setEditar, admin, pedeExclusao, onExcluido }) {
+  const [f, setF] = useState(null);
+  const [motivo, setMotivo] = useState('');
+  const [pedindo, setPedindo] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const obra = dados.demandas.find((d) => d.id === r.demanda_id);
+  const rotulo = [tipoRelatorio[r.tipo]?.nome, obra?.nome, new Date(r.dia + 'T12:00').toLocaleDateString('pt-BR')].filter(Boolean).join(' · ');
+  const pedidos = (dados.relatorio_exclusoes || []).filter((x) => x.relatorio_id === r.id).sort((a, b) => (b.pedido_em || '').localeCompare(a.pedido_em || ''));
+  const pendente = pedidos.find((x) => x.status === 'pendente');
+  const recusado = !pendente && pedidos[0]?.status === 'recusado' ? pedidos[0] : null;
+  const nome = (id) => dados.perfis.find((p) => p.id === id)?.nome || 'alguém';
+  const semTabela = dados.faltando?.has('relatorio_exclusoes');
+
+  const abrirEdicao = () => { setF({ demanda_id: r.demanda_id, dia: r.dia, funcionario_id: r.funcionario_id || '', observacao: r.observacao || '' }); setEditar(true); };
+  const salvar = async () => {
+    setSalvando(true);
+    const ok = await dados.atualizarRelatorio(r.id, { demanda_id: f.demanda_id, dia: f.dia, funcionario_id: f.funcionario_id || null, observacao: f.observacao.trim() || null });
+    setSalvando(false);
+    if (ok) setEditar(false);
+  };
+  const pedir = async () => {
+    if (!motivo.trim()) return;
+    setSalvando(true);
+    const ok = await dados.pedirExclusao(r, motivo.trim(), rotulo);
+    setSalvando(false);
+    if (ok) { setPedindo(false); setMotivo(''); }
+  };
+  const decidir = async (aprovar) => {
+    let resposta = null;
+    if (!aprovar) { resposta = window.prompt('Quer explicar por que recusou? (opcional)', ''); if (resposta === null) return; resposta = resposta.trim() || null; }
+    else if (!window.confirm('Excluir este relatório e as fotos? Não dá para desfazer.')) return;
+    const ok = await dados.decidirExclusao(pendente, aprovar, resposta);
+    if (ok && aprovar) onExcluido?.();
+  };
+
+  return (
+    <div className="rel-controle">
+      {pendente && admin && (
+        <div className="rel-pedido" role="alert">
+          <span><b>{nome(pendente.pedido_por)}</b> pediu para excluir este relatório: “{pendente.motivo}”</span>
+          <span className="rel-pedido-acoes">
+            <button type="button" className="pill danger" onClick={() => decidir(true)}>Aprovar e excluir</button>
+            <button type="button" className="pill" onClick={() => decidir(false)}>Recusar</button>
+          </span>
+        </div>
+      )}
+      {pendente && !admin && <p className="rel-pedido">Exclusão pedida{pendente.pedido_em ? ` em ${new Date(pendente.pedido_em).toLocaleDateString('pt-BR')}` : ''}: aguardando um administrador aprovar.</p>}
+      {recusado && <p className="note">Último pedido de exclusão recusado por {nome(recusado.decidido_por)}{recusado.resposta ? `: “${recusado.resposta}”` : '.'}</p>}
+
+      {editar && f ? (
+        <div className="rel-editar">
+          <div className="grid2">
+            <label className="field"><span>Obra</span>
+              <select value={f.demanda_id} onChange={(e) => setF({ ...f, demanda_id: e.target.value })}>
+                {dados.demandas.filter((d) => d.empresa !== 'eko' && (!d.arquivada || d.id === r.demanda_id)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+                  .map((d) => <option key={d.id} value={d.id}>{d.nome}{d.grupo ? ' · ' + d.grupo : ''}</option>)}
+              </select>
+            </label>
+            <label className="field"><span>Dia</span>
+              <input type="date" value={f.dia} onChange={(e) => e.target.value && setF({ ...f, dia: e.target.value })} />
+            </label>
+            <label className="field"><span>Quem enviou / estava na obra</span>
+              <select value={f.funcionario_id} onChange={(e) => setF({ ...f, funcionario_id: e.target.value })}>
+                <option value="">Não informado</option>
+                {dados.funcionarios.filter((x) => x.ativo !== false || x.id === r.funcionario_id).map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+              </select>
+            </label>
+          </div>
+          <label className="field"><span>Observação (o cliente da obra também vê)</span>
+            <textarea rows={3} value={f.observacao} onChange={(e) => setF({ ...f, observacao: e.target.value })} />
+          </label>
+          <div className="row">
+            <button type="button" className="pill ghost" onClick={() => setEditar(false)}>Cancelar</button>
+            <button type="button" className="pill lime" disabled={salvando} onClick={salvar}>{salvando ? 'Salvando…' : 'Salvar'}</button>
+          </div>
+        </div>
+      ) : pedindo ? (
+        <div className="rel-editar">
+          <label className="field"><span>Por que excluir? (vai para o administrador aprovar)</span>
+            <textarea rows={2} autoFocus value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex.: relatório duplicado, obra errada, fotos de outro lugar" />
+          </label>
+          <div className="row">
+            <button type="button" className="pill ghost" onClick={() => setPedindo(false)}>Cancelar</button>
+            <button type="button" className="pill danger" disabled={salvando || !motivo.trim()} onClick={pedir}>{salvando ? 'Enviando…' : 'Pedir exclusão'}</button>
+          </div>
+        </div>
+      ) : (
+        <div className="rel-controle-acoes">
+          <button type="button" className="pill" onClick={abrirEdicao}>Editar informações</button>
+          {r.status === 'rascunho' && (
+            <button type="button" className="pill" onClick={() => window.confirm('Marcar como concluído? As fotos que ainda não subiram do celular ficam de fora.') && dados.atualizarRelatorio(r.id, { status: 'enviado' })}>Marcar como concluído</button>
+          )}
+          <span className="note">Para tirar uma foto, abra a foto e toque em “Tirar do relatório”.</span>
+          {pedeExclusao && !pendente && !semTabela && <button type="button" className="link-btn danger-text" onClick={() => setPedindo(true)}>Pedir exclusão ao administrador</button>}
+        </div>
+      )}
+    </div>
   );
 }
 
