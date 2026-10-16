@@ -29,6 +29,7 @@ const TABELAS = {
   relatorio_exclusoes: ['pedido_em', false, false], // pedidos de exclusão de relatório (gerente pede, administrador decide)
 };
 const SEM_TEMPO_REAL = ['perfis_publicos', 'adicionais_publicos'];
+const POR_FUNCAO = ['perfis_publicos', 'adicionais_publicos'];
 const NOMES = Object.keys(TABELAS);
 
 // Carrega as tabelas, escuta mudanças em tempo real e expõe as ações.
@@ -47,9 +48,18 @@ export function useData(avisar, userId) {
   const avisadas = useRef(new Set()); // tabelas que já geraram aviso (não repetir a cada recarga)
   const recarregar = useCallback(async (t) => {
     const [col, asc, recente] = TABELAS[t];
-    let q = supabase.from(t).select('*').order(col, { ascending: asc });
-    if (recente) q = q.gte('dia', limiteDias());
-    const { data, error } = await q;
+    let data, error;
+    if (POR_FUNCAO.includes(t)) {
+      // nome/foto dos colegas e adicionais sem valor vêm de funções do banco (atualização 23);
+      // antes dela, de visões com o mesmo nome
+      ({ data, error } = await supabase.rpc(t));
+      if (error && /function|could not find|does not exist/i.test(error.message || '')) ({ data, error } = await supabase.from(t).select('*'));
+      if (data) data = [...data].sort((x, y) => String(x[col] ?? '').localeCompare(String(y[col] ?? '')) * (asc ? 1 : -1));
+    } else {
+      let q = supabase.from(t).select('*').order(col, { ascending: asc });
+      if (recente) q = q.gte('dia', limiteDias());
+      ({ data, error } = await q);
+    }
     if (error) {
       const faltaTabela = /does not exist|schema cache|Could not find/i.test(error.message);
       if (faltaTabela) {
